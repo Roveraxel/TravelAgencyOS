@@ -119,6 +119,11 @@ function createSeedState() {
       { id: 'tsk-1', title: 'Confirmă echipament polar Svalbard', dueDate: '2026-11-18', done: false, tripId: 'trip-1' },
       { id: 'tsk-2', title: 'Follow-up Ana & Mara pentru Maramureș', dueDate: '2026-11-20', done: false, tripId: 'trip-2' },
     ],
+    documents: [
+      { id: 'doc-1', tripId: 'trip-1', title: 'Itinerariu Svalbard 2027.pdf', kind: 'Itinerariu', updatedAt: '2026-11-14' },
+      { id: 'doc-2', tripId: 'trip-1', title: 'Checklist echipament polar.pdf', kind: 'Ghid călător', updatedAt: '2026-11-15' },
+      { id: 'doc-3', tripId: 'trip-2', title: 'Program Maramureș 4 zile.pdf', kind: 'Itinerariu', updatedAt: '2026-11-12' },
+    ],
     offerDrafts: {},
   };
 }
@@ -140,6 +145,7 @@ function loadState() {
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
       applications: Array.isArray(parsed.applications) ? parsed.applications : [],
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      documents: Array.isArray(parsed.documents) ? parsed.documents : [],
       offerDrafts: parsed.offerDrafts && typeof parsed.offerDrafts === 'object' ? parsed.offerDrafts : {},
     };
   } catch {
@@ -282,20 +288,18 @@ function renderMasterTripCenter(trip) {
               <th>Status</th>
               <th>Pax</th>
               <th>Total</th>
-              <th>Profit</th>
               <th>Etapă</th>
             </tr>
           </thead>
           <tbody>
             ${
               tripApps.length === 0
-                ? '<tr><td colspan="6" class="muted">Niciun aplicant. Click „+ Aplică”.</td></tr>'
+                ? '<tr><td colspan="5" class="muted">Niciun aplicant. Click „+ Aplică”.</td></tr>'
                 : tripApps
                     .map((a) => {
                       const cust = getCustomer(a.customerId);
                       const pax = Number(a.pax || 1);
                       const total = pax * Number(trip.pricePerPax || 0);
-                      const profit = pax * (Number(trip.pricePerPax || 0) - Number(trip.costPerPax || 0));
                       const selectedCls = a.id === state.selectedAppId ? 'is-selected' : '';
                       return `
                       <tr class="${selectedCls}" data-select-app="${esc(a.id)}">
@@ -303,7 +307,6 @@ function renderMasterTripCenter(trip) {
                         <td>${qualDotHtml(a.qualificationStatus, a.qualificationReasons)}</td>
                         <td>${pax}</td>
                         <td><strong>${fmtMoney(total, trip.currency)}</strong></td>
-                        <td class="profit-text">+${fmtMoney(profit, trip.currency)}</td>
                         <td>
                           <select class="inline-select" data-app-stage="${esc(a.id)}" aria-label="Etapă ${esc(cust.name)}">
                             ${APPLICATION_STAGES.map(
@@ -333,6 +336,32 @@ function renderMasterTripCenter(trip) {
         <div class="form-actions" style="margin-top:12px">
           <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează structura de cost</button>
         </div>
+      </div>`;
+  } else if (state.activeCenterTab === 'docs') {
+    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
+        </div>
+        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
+        ${
+          tripDocs.length === 0
+            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            : `<div class="stack">${tripDocs
+                .map(
+                  (d) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <div>
+                    <strong>${esc(d.title)}</strong>
+                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
       </div>`;
   } else {
     const draftText =
@@ -376,16 +405,15 @@ function renderMasterTripCenter(trip) {
         </div>
       </div>
       <div class="metric-strip">
-        <div class="metric-item"><span>Cost/pax</span><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div>
-        <div class="metric-item"><span>Preț/pax</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div>
-        <div class="metric-item"><span>Cost (${m.basisPax} pax)</span><strong>${fmtMoney(m.totalCost, trip.currency)}</strong></div>
-        <div class="metric-item"><span>Încasări</span><strong>${fmtMoney(m.totalRevenue, trip.currency)}</strong></div>
+        <div class="metric-item"><span>Locuri</span><strong>${m.confirmedPax}/${trip.maxPax} pax</strong></div>
+        <div class="metric-item"><span>Preț</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}/pax</strong></div>
         <div class="metric-item is-profit"><span>Profit</span><strong>${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)} (${m.marginPct}%)</strong></div>
       </div>
     </div>
 
     <div class="sub-tabs no-print">
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă &amp; PDF</button>
     </div>
@@ -419,7 +447,6 @@ function renderApplicantRightRail(trip) {
     </div>
     <div class="metric-strip" style="gap:12px">
       <div class="metric-item"><span>Total</span><strong>${fmtMoney(total, trip.currency)}</strong></div>
-      <div class="metric-item"><span>Cost</span><strong>${fmtMoney(cost, trip.currency)}</strong></div>
       <div class="metric-item is-profit" style="margin-left:0"><span>Profit</span><strong>+${fmtMoney(profit, trip.currency)}</strong></div>
     </div>
     <div class="form-actions">
@@ -579,6 +606,13 @@ document.addEventListener('click', async (e) => {
       fb.className = 'feedback-msg is-error';
       fb.textContent = 'Serverul AI nu a răspuns.';
     }
+  } else if (btn.id === 'add-doc-btn') {
+    openDocModal();
+  } else if (btn.dataset.deleteDoc) {
+    state.documents = (state.documents || []).filter((d) => d.id !== btn.dataset.deleteDoc);
+    saveState();
+    renderTripsView();
+    showToast('Document șters.');
   } else if (btn.dataset.deleteTask) {
     state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.deleteTask);
     saveState();
@@ -689,6 +723,16 @@ function openApplyModal() {
   modalEl.hidden = false;
 }
 
+function openDocModal() {
+  activeModal = { type: 'doc', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Document nou pentru sejur';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="d-title">Nume document *</label><input id="d-title" name="title" class="input" required placeholder="ex. Itinerariu final.pdf"></div>
+    <div class="field"><label for="d-kind">Tip</label><select id="d-kind" name="kind" class="input"><option>Itinerariu</option><option>Ghid călător</option><option>Ofertă furnizor</option><option>Contract</option></select></div>
+  `;
+  modalEl.hidden = false;
+}
+
 function openTaskModal() {
   activeModal = { type: 'task' };
   modalTitleEl.textContent = 'Sarcină nouă';
@@ -724,7 +768,33 @@ modalFormEl.addEventListener('submit', (e) => {
     };
     if (activeModal.id) {
       Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
-    } else {
+    } else if (state.activeCenterTab === 'docs') {
+    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
+        </div>
+        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
+        ${
+          tripDocs.length === 0
+            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            : `<div class="stack">${tripDocs
+                .map(
+                  (d) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <div>
+                    <strong>${esc(d.title)}</strong>
+                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
+      </div>`;
+  } else {
       const id = uid('trip');
       state.trips.unshift({ id, ...payload });
       state.selectedTripId = id;
@@ -757,6 +827,17 @@ modalFormEl.addEventListener('submit', (e) => {
     });
     state.selectedAppId = appId;
     showToast(`Aplicant adăugat: ${qual.status}`);
+  } else if (activeModal.type === 'doc') {
+    if (!data.title?.trim()) return showError('Numele documentului este obligatoriu.');
+    state.documents = state.documents || [];
+    state.documents.unshift({
+      id: uid('doc'),
+      tripId: activeModal.tripId,
+      title: data.title.trim(),
+      kind: data.kind || 'Itinerariu',
+      updatedAt: new Date().toISOString().slice(0, 10),
+    });
+    showToast('Document adăugat.');
   } else if (activeModal.type === 'task') {
     if (!data.title?.trim()) return showError('Titlul este obligatoriu.');
     state.tasks.unshift({ id: uid('tsk'), title: data.title.trim(), dueDate: data.dueDate, done: false, tripId: data.tripId });
@@ -794,6 +875,32 @@ function exportDatasetCsv(kind) {
       calificare: a.qualificationStatus,
       etapa: a.stage,
     }));
+  } else if (state.activeCenterTab === 'docs') {
+    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
+        </div>
+        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
+        ${
+          tripDocs.length === 0
+            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            : `<div class="stack">${tripDocs
+                .map(
+                  (d) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <div>
+                    <strong>${esc(d.title)}</strong>
+                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
+      </div>`;
   } else {
     headers = ['nume', 'canal', 'nota'];
     rows = state.customers.map((c) => ({ nume: c.name, canal: c.channel, nota: c.note }));
