@@ -3,121 +3,129 @@ import {
   parseCsvText,
   validateEnquiryImportRows,
   VALID_CURRENCIES,
-  ENQUIRY_STATUSES,
 } from '/csv-utils.js';
 import { getDueStatus, getDueLabel } from '/date-utils.js';
+import {
+  APPLICATION_STAGES,
+  computeMasterTripMetrics,
+  autoQualifyApplication,
+} from '/trip-utils.js';
 
-const STORAGE_KEY = 'travelagencyos_prototype_v1';
-
-const BOOKING_STATUSES = [
-  'Opțiune',
-  'Confirmată',
-  'Achitată parțial',
-  'Achitată integral',
-  'Anulată',
-];
+const STORAGE_KEY = 'travelagencyos_garlic_v2';
 
 function createSeedState() {
   return {
-    customers: [
-      { id: 'cust-1', name: 'Familie Demo Ionescu', channel: 'WhatsApp', note: 'Preferă hoteluri family-friendly (date demo)' },
-      { id: 'cust-2', name: 'Cuplu Demo Popa', channel: 'Email', note: 'Interesați de city break-uri (date demo)' },
-      { id: 'cust-3', name: 'Grup Demo Brașov', channel: 'Telefon', note: '4 adulți, zbor din OTP (date demo)' },
-    ],
-    enquiries: [
+    selectedTripId: 'trip-1',
+    selectedAppId: 'app-1',
+    activeCenterTab: 'applicants',
+    trips: [
       {
-        id: 'enq-1',
-        customerId: 'cust-1',
-        destination: 'Antalya, Turcia',
-        travelDate: '2027-06-15',
-        budget: 2400,
+        id: 'trip-1',
+        title: 'Svalbard Arctic Expedition',
+        destination: 'Longyearbyen, Svalbard',
+        dates: '2027-03-14 → 2027-03-21',
+        maxPax: 10,
+        costPerPax: 1450,
+        pricePerPax: 1850,
+        fixedCost: 400,
         currency: 'EUR',
-        source: 'WhatsApp',
-        status: 'Ofertată',
-        followUpDate: '2026-11-20',
-        notes: '2 adulți + 1 copil (6 ani), All Inclusive, zbor direct.',
+        style: 'Expediție grup mic, snowmobile, observare natură',
+        notes: 'Include ghid local și transfer aeroport. Echipament polar [DE CONFIRMAT].',
       },
       {
-        id: 'enq-2',
-        customerId: 'cust-2',
-        destination: 'Roma, Italia',
-        travelDate: '2027-04-10',
-        budget: 4500,
+        id: 'trip-2',
+        title: 'Maramureș & Bucovina Trail',
+        destination: 'Maramureș, România',
+        dates: '2027-05-01 → 2027-05-04',
+        maxPax: 12,
+        costPerPax: 1150,
+        pricePerPax: 1550,
+        fixedCost: 300,
         currency: 'RON',
-        source: 'Email',
-        status: 'Nouă',
-        followUpDate: '2026-11-18',
-        notes: '4 nopți, hotel central 4*, mic dejun.',
+        style: 'Drumeții ușoare, pensiuni locale, cină tradițională',
+        notes: 'Plecări din Timișoara / Cluj.',
       },
       {
-        id: 'enq-3',
-        customerId: 'cust-3',
-        destination: 'Creta, Grecia',
-        travelDate: '2027-07-05',
-        budget: 3200,
+        id: 'trip-3',
+        title: 'Vietnam & Cambodgia',
+        destination: 'Hanoi · Ha Long · Siem Reap',
+        dates: '2027-10-10 → 2027-10-22',
+        maxPax: 12,
+        costPerPax: 1680,
+        pricePerPax: 2150,
+        fixedCost: 600,
         currency: 'EUR',
-        source: 'Recomandare',
-        status: 'Convertită',
-        followUpDate: '2026-11-25',
-        notes: 'Transfer inclus, 2 camere duble.',
+        style: 'Grup de prieteni, street food, temple Angkor',
+        notes: 'Zbor internațional [DE CONFIRMAT].',
       },
     ],
-    bookings: [
+    customers: [
+      { id: 'cust-1', name: 'Radu Demo', channel: 'WhatsApp', note: 'A mai fost în Islanda (date demo)' },
+      { id: 'cust-2', name: 'Elena & Mihai Demo', channel: 'Instagram', note: 'Preferă grupuri mici (date demo)' },
+      { id: 'cust-3', name: 'Vlad Demo', channel: 'Email', note: 'Întreabă de rate (date demo)' },
+      { id: 'cust-4', name: 'Ana & Mara Demo', channel: 'WhatsApp', note: 'Drumeții de weekend (date demo)' },
+    ],
+    applications: [
       {
-        id: 'bk-1',
-        enquiryId: 'enq-3',
+        id: 'app-1',
+        tripId: 'trip-1',
+        customerId: 'cust-1',
+        pax: 2,
+        budgetPerPax: 1900,
+        stage: 'Avans achitat',
+        qualificationStatus: 'Calificat automat',
+        qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
+        appliedAt: '2026-11-12',
+        notes: ['12 nov · Aplicat prin formular sejur', '14 nov · Achitat avans 30%'],
+      },
+      {
+        id: 'app-2',
+        tripId: 'trip-1',
+        customerId: 'cust-2',
+        pax: 2,
+        budgetPerPax: 1850,
+        stage: 'Confirmat',
+        qualificationStatus: 'Calificat automat',
+        qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
+        appliedAt: '2026-11-10',
+        notes: ['10 nov · Confirmat locuri'],
+      },
+      {
+        id: 'app-3',
+        tripId: 'trip-1',
         customerId: 'cust-3',
-        destination: 'Creta, Grecia',
-        supplier: 'TourOperator Demo',
-        travelDate: '2027-07-05',
-        amount: 3150,
-        currency: 'EUR',
-        dueDate: '2026-12-01',
-        status: 'Achitată parțial',
+        pax: 1,
+        budgetPerPax: 1300,
+        stage: 'Aplicat',
+        qualificationStatus: 'Buget sub prag',
+        qualificationReasons: ['Buget (1300 EUR) sub pragul sejurului (1850 EUR)'],
+        appliedAt: '2026-11-15',
+        notes: ['15 nov · Aplicat; necesită discuție buget'],
+      },
+      {
+        id: 'app-4',
+        tripId: 'trip-2',
+        customerId: 'cust-4',
+        pax: 4,
+        budgetPerPax: 1600,
+        stage: 'Ofertă trimisă',
+        qualificationStatus: 'Calificat automat',
+        qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
+        appliedAt: '2026-11-14',
+        notes: ['14 nov · Trimis PDF pe WhatsApp'],
       },
     ],
     tasks: [
-      {
-        id: 'tsk-1',
-        title: 'Confirmă feedback ofertă Antalya',
-        dueDate: '2026-11-18',
-        done: false,
-        enquiryId: 'enq-1',
-        bookingId: '',
-      },
-      {
-        id: 'tsk-2',
-        title: 'Verifică tranșa 2 pentru Creta',
-        dueDate: '2026-11-28',
-        done: false,
-        enquiryId: '',
-        bookingId: 'bk-1',
-      },
+      { id: 'tsk-1', title: 'Confirmă echipament polar Svalbard', dueDate: '2026-11-18', done: false, tripId: 'trip-1' },
+      { id: 'tsk-2', title: 'Follow-up Ana & Mara pentru Maramureș', dueDate: '2026-11-20', done: false, tripId: 'trip-2' },
     ],
-    offers: [
-      {
-        id: 'off-1',
-        title: 'Schiță demo — Antalya Iunie 2027',
-        body: [
-          'PROPUNERE ORIENTATIVĂ DE CĂLĂTORIE',
-          'Destinație: Antalya, Turcia',
-          'Perioadă: 15-22 iunie 2027 [DE CONFIRMAT]',
-          'Componență: 2 adulți + 1 copil',
-          'Regim masă: All Inclusive [DE CONFIRMAT]',
-          'Buget orientativ: 2400 EUR [DE CONFIRMAT]',
-          '',
-          'Notă: Tarifele și disponibilitatea locurilor se confirmă ferm în momentul rezervării.',
-        ].join('\n'),
-        updatedAt: '2026-11-16',
-      },
-    ],
+    offerDrafts: {},
   };
 }
 
 let state = loadState();
 let activeModal = null;
 let stagedCsvRows = [];
-let enquiryLayout = 'table';
 
 function loadState() {
   try {
@@ -125,11 +133,14 @@ function loadState() {
     if (!raw) return createSeedState();
     const parsed = JSON.parse(raw);
     return {
+      selectedTripId: parsed.selectedTripId || parsed.trips?.[0]?.id || '',
+      selectedAppId: parsed.selectedAppId || '',
+      activeCenterTab: parsed.activeCenterTab || 'applicants',
+      trips: Array.isArray(parsed.trips) ? parsed.trips : [],
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
-      enquiries: Array.isArray(parsed.enquiries) ? parsed.enquiries : [],
-      bookings: Array.isArray(parsed.bookings) ? parsed.bookings : [],
+      applications: Array.isArray(parsed.applications) ? parsed.applications : [],
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      offers: Array.isArray(parsed.offers) ? parsed.offers : [],
+      offerDrafts: parsed.offerDrafts && typeof parsed.offerDrafts === 'object' ? parsed.offerDrafts : {},
     };
   } catch {
     return createSeedState();
@@ -153,574 +164,479 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
-function initials(name) {
-  const parts = String(name || '?').trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() || '').join('') || '?';
+function fmtMoney(amount, currency) {
+  return `${Number(amount || 0).toLocaleString('ro-RO')} ${esc(currency || 'EUR')}`;
 }
 
-function avatarCellHtml(name) {
-  return `<div class="avatar-cell"><span class="avatar" aria-hidden="true">${esc(initials(name))}</span><strong>${esc(name)}</strong></div>`;
+function getCustomer(id) {
+  return state.customers.find((c) => c.id === id) || { name: 'Client', channel: '-' };
 }
 
-function getCustomerName(customerId) {
-  return state.customers.find((c) => c.id === customerId)?.name || 'Client nespecificat';
+function qualBadgeClass(status) {
+  if (status === 'Calificat automat') return 'badge badge-profit';
+  if (status === 'Buget sub prag') return 'badge badge-danger';
+  return 'badge badge-warning';
 }
 
-function formatMoney(amount, currency) {
-  const num = Number(amount || 0);
-  return `${num.toLocaleString('ro-RO')} ${esc(currency || 'EUR')}`;
-}
-
-function statusBadgeClass(status) {
-  if (['Convertită', 'Confirmată', 'Achitată integral'].includes(status)) return 'badge badge-success';
-  if (['Pierdută', 'Anulată'].includes(status)) return 'badge badge-danger';
-  if (['Opțiune', 'În negociere', 'Achitată parțial'].includes(status)) return 'badge badge-warning';
-  return 'badge';
-}
-
-function dueBadgeHtml(isoDate) {
-  const status = getDueStatus(isoDate);
-  const label = getDueLabel(status);
-  if (!label) return '';
-  const cls =
-    status === 'overdue'
-      ? 'badge badge-danger'
-      : status === 'today'
-      ? 'badge badge-warning'
-      : 'badge';
-  return ` <span class="${cls}">${esc(label)}</span>`;
-}
-
-function showToast(message) {
+function showToast(msg) {
   const region = document.getElementById('toast-region');
   if (!region) return;
   const el = document.createElement('div');
   el.className = 'toast';
-  el.textContent = message;
+  el.textContent = msg;
   region.appendChild(el);
-  setTimeout(() => el.remove(), 2800);
+  setTimeout(() => el.remove(), 2600);
 }
 
 /* ---------------- NAVIGATION ---------------- */
 
 function switchView(viewName) {
-  document.querySelectorAll('.nav-btn').forEach((btn) => {
-    const active = btn.dataset.view === viewName;
-    btn.classList.toggle('is-active', active);
-    btn.setAttribute('aria-selected', String(active));
+  document.querySelectorAll('.top-nav-btn').forEach((b) => {
+    const active = b.dataset.view === viewName;
+    b.classList.toggle('is-active', active);
+    b.setAttribute('aria-selected', String(active));
   });
   document.querySelectorAll('.view-section').forEach((sec) => {
-    const active = sec.id === `view-${viewName}`;
-    sec.hidden = !active;
-    sec.classList.toggle('is-active', active);
+    sec.hidden = sec.id !== `view-${viewName}`;
   });
   renderAll();
 }
 
-document.querySelectorAll('.nav-btn').forEach((btn) => {
+document.querySelectorAll('.top-nav-btn').forEach((btn) => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
-});
-
-document.querySelectorAll('[data-nav-jump]').forEach((btn) => {
-  btn.addEventListener('click', () => switchView(btn.dataset.navJump));
 });
 
 /* ---------------- RENDERING ---------------- */
 
 function renderAll() {
-  renderDashboard();
-  renderEnquiries();
-  renderBookings();
-  renderCustomers();
-  renderTasks();
-  renderSavedOffers();
+  renderTripsView();
+  renderTasksView();
+  renderCustomersView();
 }
 
-function renderDashboard() {
-  const activeEnquiries = state.enquiries.filter(
-    (e) => !['Convertită', 'Pierdută'].includes(e.status)
-  );
-  const activeBookings = state.bookings.filter((b) => b.status !== 'Anulată');
-  const openTasks = state.tasks.filter((t) => !t.done);
+function renderTripsView() {
+  const listEl = document.getElementById('master-trips-list');
+  document.getElementById('trips-count-badge').textContent = String(state.trips.length);
 
-  const totalsByCurrency = {};
-  for (const b of activeBookings) {
-    const cur = b.currency || 'EUR';
-    totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + Number(b.amount || 0);
+  if (state.trips.length === 0) {
+    listEl.innerHTML = '<div class="muted small" style="padding:14px">Niciun sejur creat.</div>';
+    document.getElementById('master-trip-center').innerHTML =
+      '<div class="card">Creați primul Master Trip cu „+ Sejur nou”.</div>';
+    document.getElementById('applicant-detail-rail').innerHTML = '';
+    return;
   }
-  const totalsText =
-    Object.entries(totalsByCurrency)
-      .map(([cur, val]) => `${val.toLocaleString('ro-RO')} ${cur}`)
-      .join(' · ') || '0 EUR';
 
-  document.getElementById('dashboard-kpis').innerHTML = `
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Cereri active</div>
-        <div class="kpi-value">${activeEnquiries.length}</div>
+  let trip = state.trips.find((t) => t.id === state.selectedTripId);
+  if (!trip) {
+    trip = state.trips[0];
+    state.selectedTripId = trip.id;
+  }
+
+  listEl.innerHTML = state.trips
+    .map((t) => {
+      const m = computeMasterTripMetrics(t, state.applications);
+      const active = t.id === trip.id ? 'is-active' : '';
+      return `
+      <button type="button" class="trip-list-item ${active}" data-select-trip="${esc(t.id)}">
+        <div class="trip-item-top">
+          <span>${esc(t.title)}</span>
+          <span class="profit-text">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, t.currency)}</span>
+        </div>
+        <div class="trip-item-meta">${esc(t.dates)} · ${m.confirmedPax}/${t.maxPax} pax</div>
+      </button>`;
+    })
+    .join('');
+
+  renderMasterTripCenter(trip);
+  renderApplicantRightRail(trip);
+}
+
+function renderMasterTripCenter(trip) {
+  const centerEl = document.getElementById('master-trip-center');
+  const m = computeMasterTripMetrics(trip, state.applications);
+  const tripApps = state.applications.filter((a) => a.tripId === trip.id);
+
+  if (!tripApps.some((a) => a.id === state.selectedAppId)) {
+    state.selectedAppId = tripApps[0]?.id || '';
+  }
+
+  let tabBodyHtml = '';
+  if (state.activeCenterTab === 'applicants') {
+    tabBodyHtml = `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Calificare automată</th>
+              <th>Pax</th>
+              <th>Total</th>
+              <th>Profit</th>
+              <th>Etapă ATS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              tripApps.length === 0
+                ? '<tr><td colspan="6" class="muted">Niciun aplicant încă. Folosiți „+ Aplică client”.</td></tr>'
+                : tripApps
+                    .map((a) => {
+                      const cust = getCustomer(a.customerId);
+                      const pax = Number(a.pax || 1);
+                      const total = pax * Number(trip.pricePerPax || 0);
+                      const profit = pax * (Number(trip.pricePerPax || 0) - Number(trip.costPerPax || 0));
+                      const selectedCls = a.id === state.selectedAppId ? 'is-selected' : '';
+                      return `
+                      <tr class="${selectedCls}" data-select-app="${esc(a.id)}">
+                        <td><strong>${esc(cust.name)}</strong><div class="muted small">${esc(cust.channel)}</div></td>
+                        <td><span class="${qualBadgeClass(a.qualificationStatus)}">${esc(a.qualificationStatus)}</span></td>
+                        <td>${pax} pax</td>
+                        <td><strong>${fmtMoney(total, trip.currency)}</strong></td>
+                        <td class="profit-text">+${fmtMoney(profit, trip.currency)}</td>
+                        <td>
+                          <select class="inline-select" data-app-stage="${esc(a.id)}" aria-label="Etapă ${esc(cust.name)}">
+                            ${APPLICATION_STAGES.map(
+                              (s) => `<option value="${s}" ${a.stage === s ? 'selected' : ''}>${s}</option>`
+                            ).join('')}
+                          </select>
+                        </td>
+                      </tr>`;
+                    })
+                    .join('')
+            }
+          </tbody>
+        </table>
+      </div>`;
+  } else if (state.activeCenterTab === 'costs') {
+    tabBodyHtml = `
+      <div class="card">
+        <h2 style="margin:0 0 12px;font-size:1rem">Structură costuri Master Trip</h2>
+        <div class="two-col-tight">
+          <div><span class="muted small">Cost furnizor / pax</span><div><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div></div>
+          <div><span class="muted small">Preț vânzare / pax</span><div><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div></div>
+          <div><span class="muted small">Cost fix grup (ghid / transfer)</span><div><strong>${fmtMoney(trip.fixedCost, trip.currency)}</strong></div></div>
+          <div><span class="muted small">Capacitate maximă</span><div><strong>${trip.maxPax} pax (${m.spotsRemaining} libere)</strong></div></div>
+        </div>
+        <hr class="divider">
+        <p class="muted small">Note operaționale: ${esc(trip.notes || '-')}</p>
+        <div class="form-actions" style="margin-top:12px">
+          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează structura de cost</button>
+        </div>
+      </div>`;
+  } else {
+    const draftText =
+      state.offerDrafts[trip.id] ||
+      [
+        `PROPUNERE SEJUR — ${trip.title}`,
+        `Destinație: ${trip.destination}`,
+        `Perioadă: ${trip.dates}`,
+        `Stil: ${trip.style || 'Grup mic'}`,
+        `Tarif orientativ: ${trip.pricePerPax} ${trip.currency} / persoană [DE CONFIRMAT]`,
+        ``,
+        `Notă: Locurile (${m.spotsRemaining} disponibile) și tarifele finale se confirmă la înscriere.`,
+      ].join('\n');
+
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <h2 style="margin:0;font-size:1rem">Ofertă Master (WhatsApp / Print PDF)</h2>
+          <div class="header-actions no-print">
+            <button type="button" class="btn btn-secondary btn-sm" id="trip-ai-draft-btn">Generează cu Gemini AI</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="trip-copy-wa-btn">Copiază WhatsApp</button>
+            <button type="button" class="btn btn-primary btn-sm" id="trip-print-btn">Print / PDF</button>
+          </div>
+        </div>
+        <textarea id="trip-offer-textarea" rows="10" class="input mono-area no-print">${esc(draftText)}</textarea>
+        <div id="trip-ai-feedback" class="feedback-msg no-print" style="margin-top:8px"></div>
+        <div class="offer-print-preview">${esc(draftText)}</div>
+      </div>`;
+  }
+
+  centerEl.innerHTML = `
+    <div class="card">
+      <div class="master-header">
+        <div>
+          <h1>${esc(trip.title)}</h1>
+          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.confirmedPax}/${trip.maxPax} locuri confirmate</p>
+        </div>
+        <div class="header-actions no-print">
+          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">Editează sejur</button>
+          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">+ Aplică client (Simulare)</button>
+        </div>
       </div>
-      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="econ-grid">
+        <div class="econ-box">
+          <div class="econ-label">Cost / pax</div>
+          <div class="econ-value">${fmtMoney(trip.costPerPax, trip.currency)}</div>
+        </div>
+        <div class="econ-box">
+          <div class="econ-label">Preț / pax</div>
+          <div class="econ-value">${fmtMoney(trip.pricePerPax, trip.currency)}</div>
+        </div>
+        <div class="econ-box">
+          <div class="econ-label">Cost total (${m.basisPax} pax)</div>
+          <div class="econ-value">${fmtMoney(m.totalCost, trip.currency)}</div>
+        </div>
+        <div class="econ-box">
+          <div class="econ-label">Încasări estimate</div>
+          <div class="econ-value">${fmtMoney(m.totalRevenue, trip.currency)}</div>
+        </div>
+        <div class="econ-box is-profit">
+          <div class="econ-label">Profit estimat</div>
+          <div class="econ-value">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)} (${m.marginPct}%)</div>
+        </div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Rezervări active</div>
-        <div class="kpi-value">${activeBookings.length}</div>
-      </div>
-      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></div>
+
+    <div class="sub-tabs no-print">
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Structură costuri</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă Master &amp; Print</button>
     </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Valoare rezervări active</div>
-        <div class="kpi-value" style="font-size:1.25rem">${esc(totalsText)}</div>
-      </div>
-      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3 3 0 0 0-5 2.2c0 2 5 1.5 5 3.8a3 3 0 0 1-5.2 2"/><path d="M12 6v12"/></svg></div>
+
+    ${tabBodyHtml}
+  `;
+}
+
+function renderApplicantRightRail(trip) {
+  const rail = document.getElementById('applicant-detail-rail');
+  const app = state.applications.find((a) => a.id === state.selectedAppId && a.tripId === trip.id);
+  if (!app) {
+    rail.innerHTML = '<div class="muted small">Selectați un aplicant pentru detalii și acțiuni rapide.</div>';
+    return;
+  }
+
+  const cust = getCustomer(app.customerId);
+  const pax = Number(app.pax || 1);
+  const total = pax * Number(trip.pricePerPax || 0);
+  const cost = pax * Number(trip.costPerPax || 0);
+  const profit = total - cost;
+
+  rail.innerHTML = `
+    <div class="rail-header" style="padding:0 0 10px">
+      <span>Aplicant selectat</span>
+      <span class="${qualBadgeClass(app.qualificationStatus)}">${esc(app.qualificationStatus)}</span>
     </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Sarcini de făcut</div>
-        <div class="kpi-value">${openTasks.length}</div>
-      </div>
-      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <div>
+      <strong style="font-size:1.02rem">${esc(cust.name)}</strong>
+      <div class="muted small">${esc(cust.channel)} · ${pax} pax · Buget ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
+    </div>
+    <div class="card" style="padding:12px;background:var(--bg)">
+      <div class="small muted">Calificare automată:</div>
+      <div class="small" style="margin-top:4px">${esc((app.qualificationReasons || []).join('; '))}</div>
+      <hr class="divider">
+      <div class="small">Total pachet: <strong>${fmtMoney(total, trip.currency)}</strong></div>
+      <div class="small muted">Cost furnizor: ${fmtMoney(cost, trip.currency)}</div>
+      <div class="small profit-text">Profit: +${fmtMoney(profit, trip.currency)}</div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">Avansează etapa →</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">Copiază WhatsApp</button>
+    </div>
+    <div class="rail-header" style="padding:10px 0 6px"><span>Activitate &amp; Note</span></div>
+    <form id="rail-note-form" class="form-actions">
+      <input id="rail-note-input" class="input" placeholder="Adaugă notă rapidă..." aria-label="Adaugă notă rapidă">
+    </form>
+    <div class="stack">
+      ${(app.notes || []).map((n) => `<div class="small" style="border-bottom:1px solid var(--border);padding-bottom:6px">${esc(n)}</div>`).join('')}
     </div>
   `;
-
-  const dashTasksEl = document.getElementById('dashboard-tasks');
-  if (openTasks.length === 0) {
-    dashTasksEl.innerHTML = '<p class="muted small">Nu aveți sarcini deschise.</p>';
-  } else {
-    dashTasksEl.innerHTML = `<div class="stack">${openTasks
-      .slice(0, 4)
-      .map(
-        (t) => `
-      <div class="task-row">
-        <div>
-          <strong>${esc(t.title)}</strong>
-          <div class="muted small">Scadență: ${esc(t.dueDate || 'Fără termen')}</div>
-        </div>
-        <button type="button" class="btn btn-secondary btn-sm" data-toggle-task="${esc(t.id)}">Gata</button>
-      </div>`
-      )
-      .join('')}</div>`;
-  }
-
-  const dashEnqEl = document.getElementById('dashboard-enquiries');
-  if (activeEnquiries.length === 0) {
-    dashEnqEl.innerHTML = '<p class="muted small">Nu aveți cereri active.</p>';
-  } else {
-    dashEnqEl.innerHTML = `<div class="stack">${activeEnquiries
-      .slice(0, 4)
-      .map(
-        (e) => `
-      <div class="task-row">
-        <div>
-          <strong>${esc(e.destination)}</strong> — ${esc(getCustomerName(e.customerId))}
-          <div class="muted small">${formatMoney(e.budget, e.currency)} · Follow-up: ${esc(e.followUpDate || '-')}</div>
-        </div>
-        <span class="${statusBadgeClass(e.status)}">${esc(e.status)}</span>
-      </div>`
-      )
-      .join('')}</div>`;
-  }
 }
 
-function renderEnquiries() {
-  const query = document.getElementById('enquiry-search').value.trim().toLowerCase();
-  const statusFilter = document.getElementById('enquiry-status-filter').value;
-
-  const filtered = state.enquiries.filter((e) => {
-    if (statusFilter && e.status !== statusFilter) return false;
-    if (!query) return true;
-    const cName = getCustomerName(e.customerId).toLowerCase();
-    return (
-      cName.includes(query) ||
-      e.destination.toLowerCase().includes(query) ||
-      (e.source || '').toLowerCase().includes(query)
-    );
-  });
-
-  const tableWrap = document.getElementById('enquiries-table-wrap');
-  const kanbanWrap = document.getElementById('enquiries-kanban');
-  tableWrap.hidden = enquiryLayout !== 'table';
-  kanbanWrap.hidden = enquiryLayout !== 'kanban';
-
-  const tbody = document.getElementById('enquiries-tbody');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Nicio cerere găsită.</td></tr>';
-  } else {
-    tbody.innerHTML = filtered
-      .map(
-        (e) => `
-    <tr>
-      <td>${avatarCellHtml(getCustomerName(e.customerId))}</td>
-      <td>
-        <div><strong>${esc(e.destination)}</strong></div>
-        <div class="muted small">${esc(e.travelDate || 'Dată neprecizată')}</div>
-      </td>
-      <td>${e.budget ? formatMoney(e.budget, e.currency) : '<span class="muted">-</span>'}</td>
-      <td>${esc(e.source || '-')}</td>
-      <td>
-        <select class="inline-select" data-quick-enquiry-status="${esc(e.id)}" aria-label="Status cerere ${esc(e.destination)}">
-          ${ENQUIRY_STATUSES.map(
-            (s) => `<option value="${s}" ${e.status === s ? 'selected' : ''}>${s}</option>`
-          ).join('')}
-        </select>
-      </td>
-      <td>${esc(e.followUpDate || '-')}${dueBadgeHtml(e.followUpDate)}</td>
-      <td>
-        <div class="header-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-edit-enquiry="${esc(e.id)}">Editează</button>
-          ${
-            e.status !== 'Convertită'
-              ? `<button type="button" class="btn btn-primary btn-sm" data-convert-enquiry="${esc(e.id)}">Convertește</button>`
-              : ''
-          }
-          <button type="button" class="btn btn-ghost btn-sm" data-task-for-enquiry="${esc(e.id)}">+ Sarcină</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-offer-from-enquiry="${esc(e.id)}">Schiță</button>
-          <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-enquiry="${esc(e.id)}">Șterge</button>
-        </div>
-      </td>
-    </tr>`
-      )
-      .join('');
-  }
-
-  const pipelineStages = ['Nouă', 'Ofertată', 'În negociere', 'Convertită'];
-  kanbanWrap.innerHTML = pipelineStages
-    .map((stage) => {
-      const items = filtered.filter((e) => e.status === stage);
-      return `
-      <div class="kanban-col">
-        <div class="kanban-col-header">
-          <span>${esc(stage)}</span>
-          <span class="kanban-count">${items.length}</span>
-        </div>
-        ${
-          items.length === 0
-            ? '<div class="muted small">Nicio cerere</div>'
-            : items
-                .map(
-                  (e) => `
-          <div class="kanban-card">
-            <div class="kanban-card-title">${esc(e.destination)}</div>
-            <div class="kanban-card-meta">${esc(getCustomerName(e.customerId))} · ${esc(e.source || '-')}</div>
-            <div class="kanban-card-meta">
-              ${e.budget ? `<strong>${formatMoney(e.budget, e.currency)}</strong>` : 'Buget -'}
-              ${e.followUpDate ? ` · ${esc(e.followUpDate)}${dueBadgeHtml(e.followUpDate)}` : ''}
-            </div>
-            <div class="header-actions">
-              <button type="button" class="btn btn-secondary btn-sm" data-edit-enquiry="${esc(e.id)}">Editează</button>
-              ${
-                e.status !== 'Convertită'
-                  ? `<button type="button" class="btn btn-primary btn-sm" data-convert-enquiry="${esc(e.id)}">Convertește</button>`
-                  : ''
-              }
-            </div>
-          </div>`
-                )
-                .join('')
-        }
-      </div>`;
-    })
-    .join('');
-}
-
-function renderBookings() {
-  const query = document.getElementById('booking-search').value.trim().toLowerCase();
-  const statusFilter = document.getElementById('booking-status-filter').value;
-
-  const filtered = state.bookings.filter((b) => {
-    if (statusFilter && b.status !== statusFilter) return false;
-    if (!query) return true;
-    const cName = getCustomerName(b.customerId).toLowerCase();
-    return (
-      cName.includes(query) ||
-      b.destination.toLowerCase().includes(query) ||
-      (b.supplier || '').toLowerCase().includes(query)
-    );
-  });
-
-  const tbody = document.getElementById('bookings-tbody');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Nicio rezervare găsită.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = filtered
-    .map(
-      (b) => `
-    <tr>
-      <td>${avatarCellHtml(getCustomerName(b.customerId))}</td>
-      <td>
-        <div>${esc(b.destination)}</div>
-        <div class="muted small">${esc(b.travelDate || '-')}</div>
-      </td>
-      <td>${esc(b.supplier || '-')}</td>
-      <td><strong>${formatMoney(b.amount, b.currency)}</strong></td>
-      <td>${esc(b.dueDate || '-')}${dueBadgeHtml(b.dueDate)}</td>
-      <td><span class="${statusBadgeClass(b.status)}">${esc(b.status)}</span></td>
-      <td>
-        <div class="header-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-edit-booking="${esc(b.id)}">Editează</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-task-for-booking="${esc(b.id)}">+ Sarcină</button>
-          <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-booking="${esc(b.id)}">Șterge</button>
-        </div>
-      </td>
-    </tr>`
-    )
-    .join('');
-}
-
-function renderCustomers() {
-  const query = document.getElementById('customer-search').value.trim().toLowerCase();
-  const filtered = state.customers.filter((c) => !query || c.name.toLowerCase().includes(query));
-
-  const tbody = document.getElementById('customers-tbody');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Niciun client găsit.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = filtered
-    .map((c) => {
-      const enqCount = state.enquiries.filter((e) => e.customerId === c.id).length;
-      const bkCount = state.bookings.filter((b) => b.customerId === c.id).length;
-      return `
-      <tr>
-        <td>${avatarCellHtml(c.name)}</td>
-        <td>${esc(c.channel || '-')}</td>
-        <td class="muted small">${esc(c.note || '-')}</td>
-        <td>${enqCount}</td>
-        <td>${bkCount}</td>
-        <td>
-          <div class="header-actions">
-            <button type="button" class="btn btn-secondary btn-sm" data-edit-customer="${esc(c.id)}">Editează</button>
-            <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-customer="${esc(c.id)}">Șterge</button>
-          </div>
-        </td>
-      </tr>`;
-    })
-    .join('');
-}
-
-function renderTasks() {
-  const filter = document.getElementById('task-filter').value;
-  const filtered = state.tasks.filter((t) => {
-    if (filter === 'open') return !t.done;
-    if (filter === 'done') return t.done;
-    return true;
-  });
-
+function renderTasksView() {
   const list = document.getElementById('tasks-list');
-  if (filtered.length === 0) {
-    list.innerHTML = '<div class="card muted small">Nicio sarcină în această categorie.</div>';
+  if (state.tasks.length === 0) {
+    list.innerHTML = '<div class="card muted small">Nicio sarcină.</div>';
     return;
   }
-
-  list.innerHTML = filtered
+  list.innerHTML = state.tasks
     .map((t) => {
-      const linkParts = [];
-      if (t.enquiryId) {
-        const enq = state.enquiries.find((e) => e.id === t.enquiryId);
-        if (enq) linkParts.push(`Cerere: ${enq.destination}`);
-      }
-      if (t.bookingId) {
-        const bk = state.bookings.find((b) => b.id === t.bookingId);
-        if (bk) linkParts.push(`Rezervare: ${bk.destination}`);
-      }
+      const trip = state.trips.find((tr) => tr.id === t.tripId);
+      const dueStatus = t.done ? 'none' : getDueStatus(t.dueDate);
+      const dueLabel = getDueLabel(dueStatus);
       return `
-      <div class="task-row ${t.done ? 'is-done' : ''}">
-        <div class="task-main">
-          <input type="checkbox" ${t.done ? 'checked' : ''} data-toggle-task="${esc(t.id)}" aria-label="Marchează sarcina ${esc(t.title)}">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;opacity:${t.done ? 0.6 : 1}">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" ${t.done ? 'checked' : ''} data-toggle-task="${esc(t.id)}">
           <div>
             <strong>${esc(t.title)}</strong>
             <div class="muted small">
-              Scadență: ${esc(t.dueDate || 'Fără termen')}${t.done ? '' : dueBadgeHtml(t.dueDate)}
-              ${linkParts.length ? ` · ${esc(linkParts.join(' | '))}` : ''}
+              Scadență: ${esc(t.dueDate || '-')}
+              ${dueLabel ? `<span class="badge ${dueStatus === 'overdue' ? 'badge-danger' : 'badge-warning'}">${esc(dueLabel)}</span>` : ''}
+              ${trip ? ` · ${esc(trip.title)}` : ''}
             </div>
           </div>
-        </div>
+        </label>
         <button type="button" class="btn btn-ghost btn-sm" data-delete-task="${esc(t.id)}">Șterge</button>
       </div>`;
     })
     .join('');
 }
 
-function renderSavedOffers() {
-  const list = document.getElementById('saved-offers-list');
-  if (state.offers.length === 0) {
-    list.innerHTML = '<p class="muted small">Nu aveți schițe salvate.</p>';
+function renderCustomersView() {
+  const tbody = document.getElementById('customers-tbody');
+  tbody.innerHTML = state.customers
+    .map((c) => {
+      const count = state.applications.filter((a) => a.customerId === c.id).length;
+      return `
+      <tr>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td>${esc(c.channel || '-')}</td>
+        <td>${count}</td>
+        <td class="muted small">${esc(c.note || '-')}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+/* ---------------- EVENTS ---------------- */
+
+document.addEventListener('click', async (e) => {
+  const tripBtn = e.target.closest('[data-select-trip]');
+  if (tripBtn) {
+    state.selectedTripId = tripBtn.dataset.selectTrip;
+    saveState();
+    renderTripsView();
     return;
   }
 
-  list.innerHTML = state.offers
-    .map(
-      (o) => `
-    <div class="task-row">
-      <div>
-        <strong>${esc(o.title)}</strong>
-        <div class="muted small">Actualizată: ${esc(o.updatedAt || '-')}</div>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="btn btn-secondary btn-sm" data-load-offer="${esc(o.id)}">Deschide</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-delete-offer="${esc(o.id)}">Șterge</button>
-      </div>
-    </div>`
-    )
-    .join('');
-
-  syncOfferPrintPreview();
-}
-
-function syncOfferPrintPreview() {
-  const title = document.getElementById('offer-editor-title').value.trim();
-  const body = document.getElementById('offer-editor-body').value;
-  document.getElementById('offer-print-preview').textContent = title ? `${title}\n\n${body}` : body;
-}
-
-/* ---------------- FILTERS & DELEGATED EVENTS ---------------- */
-
-['enquiry-search', 'enquiry-status-filter', 'booking-search', 'booking-status-filter', 'customer-search', 'task-filter'].forEach(
-  (id) => {
-    document.getElementById(id).addEventListener('input', renderAll);
-    document.getElementById(id).addEventListener('change', renderAll);
+  const appRow = e.target.closest('tr[data-select-app]');
+  if (appRow && !e.target.closest('select')) {
+    state.selectedAppId = appRow.dataset.selectApp;
+    saveState();
+    renderTripsView();
+    return;
   }
-);
 
-document.addEventListener('click', (event) => {
-  const btn = event.target.closest('button');
+  const tabBtn = e.target.closest('[data-center-tab]');
+  if (tabBtn) {
+    state.activeCenterTab = tabBtn.dataset.centerTab;
+    saveState();
+    renderTripsView();
+    return;
+  }
+
+  const btn = e.target.closest('button');
   if (!btn) return;
 
-  if (btn.dataset.enquiryLayout) {
-    enquiryLayout = btn.dataset.enquiryLayout;
-    document.querySelectorAll('[data-enquiry-layout]').forEach((b) => {
-      b.classList.toggle('is-active', b.dataset.enquiryLayout === enquiryLayout);
-    });
-    renderEnquiries();
-    return;
-  }
-
-  if (btn.dataset.openModal) {
-    openEntityModal(btn.dataset.openModal);
-  } else if (btn.dataset.editEnquiry) {
-    const enq = state.enquiries.find((e) => e.id === btn.dataset.editEnquiry);
-    if (enq) openEntityModal('enquiry', enq);
-  } else if (btn.dataset.convertEnquiry) {
-    const enq = state.enquiries.find((e) => e.id === btn.dataset.convertEnquiry);
-    if (enq) {
-      openEntityModal('booking', {
-        enquiryId: enq.id,
-        customerId: enq.customerId,
-        destination: enq.destination,
-        travelDate: enq.travelDate,
-        amount: enq.budget || '',
-        currency: enq.currency || 'EUR',
-        status: 'Opțiune',
+  if (btn.id === 'new-trip-btn') openTripModal();
+  else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (trip) openTripModal(trip);
+  } else if (btn.id === 'apply-to-trip-btn') {
+    openApplyModal();
+  } else if (btn.id === 'new-task-btn') {
+    openTaskModal();
+  } else if (btn.id === 'rail-advance-btn') {
+    const app = state.applications.find((a) => a.id === state.selectedAppId);
+    if (app) {
+      const idx = APPLICATION_STAGES.indexOf(app.stage);
+      if (idx >= 0 && idx < APPLICATION_STAGES.length - 2) {
+        app.stage = APPLICATION_STAGES[idx + 1];
+        app.notes.unshift(`Azi · Avansat la ${app.stage}`);
+        saveState();
+        renderTripsView();
+        showToast(`Etapă actualizată: ${app.stage}`);
+      }
+    }
+  } else if (btn.id === 'rail-wa-btn' || btn.id === 'trip-copy-wa-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const text =
+      state.offerDrafts[trip.id] ||
+      `Bună ziua! Vă trimit detaliile pentru ${trip.title} (${trip.dates}): ${trip.pricePerPax} ${trip.currency}/persoană [DE CONFIRMAT].`;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copiat pentru WhatsApp.');
+    } catch {
+      showToast('Selectați textul manual.');
+    }
+  } else if (btn.id === 'trip-print-btn') {
+    window.print();
+  } else if (btn.id === 'trip-ai-draft-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    const fb = document.getElementById('trip-ai-feedback');
+    if (!trip || !fb) return;
+    fb.className = 'feedback-msg';
+    fb.textContent = 'Se generează schița AI...';
+    try {
+      const res = await fetch('/api/offer-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: trip.destination,
+          dates: trip.dates,
+          travellersCount: `grup max ${trip.maxPax} persoane`,
+          style: trip.style,
+          budget: String(trip.pricePerPax),
+          currency: trip.currency,
+          notes: trip.notes,
+        }),
       });
-    }
-  } else if (btn.dataset.taskForEnquiry) {
-    const enq = state.enquiries.find((e) => e.id === btn.dataset.taskForEnquiry);
-    openEntityModal('task', {
-      enquiryId: btn.dataset.taskForEnquiry,
-      title: enq ? `Follow-up ofertă ${enq.destination}` : '',
-      dueDate: enq?.followUpDate || '',
-    });
-  } else if (btn.dataset.offerFromEnquiry) {
-    const enq = state.enquiries.find((e) => e.id === btn.dataset.offerFromEnquiry);
-    if (enq) {
-      document.getElementById('offer-destination').value = enq.destination || '';
-      document.getElementById('offer-dates').value = enq.travelDate || '';
-      document.getElementById('offer-budget').value = enq.budget || '';
-      document.getElementById('offer-currency').value = enq.currency || 'EUR';
-      document.getElementById('offer-notes').value = enq.notes || '';
-      switchView('offers');
-    }
-  } else if (btn.dataset.editBooking) {
-    const bk = state.bookings.find((b) => b.id === btn.dataset.editBooking);
-    if (bk) openEntityModal('booking', bk);
-  } else if (btn.dataset.taskForBooking) {
-    const bk = state.bookings.find((b) => b.id === btn.dataset.taskForBooking);
-    openEntityModal('task', {
-      bookingId: btn.dataset.taskForBooking,
-      title: bk ? `Verifică scadență ${bk.destination}` : '',
-      dueDate: bk?.dueDate || '',
-    });
-  } else if (btn.dataset.editCustomer) {
-    const c = state.customers.find((x) => x.id === btn.dataset.editCustomer);
-    if (c) openEntityModal('customer', c);
-  } else if (btn.dataset.toggleTask) {
-    const t = state.tasks.find((x) => x.id === btn.dataset.toggleTask);
-    if (t) {
-      t.done = !t.done;
+      const data = await res.json();
+      if (!res.ok) {
+        fb.className = 'feedback-msg is-error';
+        fb.textContent = data.error;
+        return;
+      }
+      state.offerDrafts[trip.id] = data.draft;
       saveState();
-      renderAll();
+      renderTripsView();
+    } catch {
+      fb.className = 'feedback-msg is-error';
+      fb.textContent = 'Serverul AI nu a răspuns.';
     }
   } else if (btn.dataset.deleteTask) {
-    state.tasks = state.tasks.filter((x) => x.id !== btn.dataset.deleteTask);
+    state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.deleteTask);
     saveState();
-    renderAll();
-    showToast('Sarcină ștearsă.');
-  } else if (btn.dataset.deleteEnquiry) {
-    state.enquiries = state.enquiries.filter((x) => x.id !== btn.dataset.deleteEnquiry);
-    state.tasks = state.tasks.filter((t) => t.enquiryId !== btn.dataset.deleteEnquiry);
-    saveState();
-    renderAll();
-    showToast('Cerere ștearsă.');
-  } else if (btn.dataset.deleteBooking) {
-    state.bookings = state.bookings.filter((x) => x.id !== btn.dataset.deleteBooking);
-    state.tasks = state.tasks.filter((t) => t.bookingId !== btn.dataset.deleteBooking);
-    saveState();
-    renderAll();
-    showToast('Rezervare ștearsă.');
-  } else if (btn.dataset.deleteCustomer) {
-    const id = btn.dataset.deleteCustomer;
-    const hasLinks =
-      state.enquiries.some((e) => e.customerId === id) ||
-      state.bookings.some((b) => b.customerId === id);
-    if (hasLinks) {
-      showToast('Clientul are cereri sau rezervări asociate și nu poate fi șters.');
-      return;
-    }
-    state.customers = state.customers.filter((c) => c.id !== id);
-    saveState();
-    renderAll();
-    showToast('Client șters.');
-  } else if (btn.dataset.loadOffer) {
-    const off = state.offers.find((x) => x.id === btn.dataset.loadOffer);
-    if (off) {
-      document.getElementById('offer-editor-title').value = off.title;
-      document.getElementById('offer-editor-body').value = off.body;
-      syncOfferPrintPreview();
-    }
-  } else if (btn.dataset.deleteOffer) {
-    state.offers = state.offers.filter((x) => x.id !== btn.dataset.deleteOffer);
-    saveState();
-    renderSavedOffers();
+    renderTasksView();
   } else if (btn.dataset.exportCsv) {
     exportDatasetCsv(btn.dataset.exportCsv);
   }
 });
 
-document.addEventListener('change', (event) => {
-  const target = event.target;
-  if (target.matches('input[type="checkbox"][data-toggle-task]')) {
-    const t = state.tasks.find((x) => x.id === target.dataset.toggleTask);
-    if (t) {
-      t.done = target.checked;
+document.addEventListener('change', (e) => {
+  if (e.target.matches('select[data-app-stage]')) {
+    const app = state.applications.find((a) => a.id === e.target.dataset.appStage);
+    if (app) {
+      app.stage = e.target.value;
+      app.notes.unshift(`Azi · Mutat în ${app.stage}`);
       saveState();
-      renderAll();
+      renderTripsView();
+      showToast(`Status: ${app.stage}`);
     }
-  } else if (target.matches('select[data-quick-enquiry-status]')) {
-    const enq = state.enquiries.find((x) => x.id === target.dataset.quickEnquiryStatus);
-    if (enq) {
-      enq.status = target.value;
+  } else if (e.target.matches('input[type="checkbox"][data-toggle-task]')) {
+    const t = state.tasks.find((x) => x.id === e.target.dataset.toggleTask);
+    if (t) {
+      t.done = e.target.checked;
       saveState();
-      renderAll();
-      showToast(`Status actualizat: ${enq.status}`);
+      renderTasksView();
     }
   }
 });
 
-/* ---------------- MODAL CRUD ---------------- */
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'trip-offer-textarea' && state.selectedTripId) {
+    state.offerDrafts[state.selectedTripId] = e.target.value;
+    saveState();
+  }
+});
+
+document.addEventListener('submit', (e) => {
+  if (e.target.id === 'rail-note-form') {
+    e.preventDefault();
+    const input = document.getElementById('rail-note-input');
+    const app = state.applications.find((a) => a.id === state.selectedAppId);
+    if (app && input?.value.trim()) {
+      app.notes.unshift(`Azi · ${input.value.trim()}`);
+      saveState();
+      renderTripsView();
+      showToast('Notă adăugată.');
+    }
+  }
+});
+
+/* ---------------- MODALS ---------------- */
 
 const modalEl = document.getElementById('app-modal');
 const modalTitleEl = document.getElementById('modal-title');
@@ -732,7 +648,6 @@ function closeModal() {
   modalEl.hidden = true;
   activeModal = null;
   modalErrorEl.hidden = true;
-  modalErrorEl.textContent = '';
 }
 
 document.getElementById('modal-close-btn').addEventListener('click', closeModal);
@@ -740,269 +655,119 @@ document.getElementById('modal-cancel-btn').addEventListener('click', closeModal
 modalEl.addEventListener('click', (e) => {
   if (e.target === modalEl) closeModal();
 });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !modalEl.hidden) closeModal();
-});
 
-function customerOptionsHtml(selectedId) {
-  return state.customers
-    .map(
-      (c) =>
-        `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`
-    )
-    .join('');
-}
-
-function currencyOptionsHtml(selected) {
-  return VALID_CURRENCIES.map(
-    (c) => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`
-  ).join('');
-}
-
-function openEntityModal(type, existing = null) {
-  activeModal = { type, id: existing?.id || null, existing };
-  modalErrorEl.hidden = true;
-
-  if (type === 'customer') {
-    modalTitleEl.textContent = existing?.id ? 'Editează client' : 'Client nou';
-    modalFieldsEl.innerHTML = `
-      <div class="field">
-        <label for="f-name">Nume / etichetă client *</label>
-        <input id="f-name" name="name" class="input" required value="${esc(existing?.name || '')}">
-      </div>
-      <div class="field">
-        <label for="f-channel">Canal preferat</label>
-        <select id="f-channel" name="channel" class="input">
-          ${['WhatsApp', 'Email', 'Telefon', 'Sediu'].map(
-            (ch) => `<option value="${ch}" ${existing?.channel === ch ? 'selected' : ''}>${ch}</option>`
-          ).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <label for="f-note">Notă (fără date sensibile în prototip)</label>
-        <textarea id="f-note" name="note" rows="2" class="input">${esc(existing?.note || '')}</textarea>
-      </div>
-    `;
-  } else if (type === 'enquiry') {
-    modalTitleEl.textContent = existing?.id ? 'Editează cerere' : 'Cerere nouă';
-    modalFieldsEl.innerHTML = `
-      <div class="field">
-        <label for="f-customer">Client existent *</label>
-        <select id="f-customer" name="customerId" class="input">${customerOptionsHtml(existing?.customerId)}</select>
-      </div>
-      <div class="field">
-        <label for="f-new-customer">Sau creează client nou rapid (opțional)</label>
-        <input id="f-new-customer" name="newCustomerName" class="input" placeholder="Lasă gol dacă ai ales din listă">
-      </div>
-      <div class="field">
-        <label for="f-dest">Destinație *</label>
-        <input id="f-dest" name="destination" class="input" required value="${esc(existing?.destination || '')}">
-      </div>
-      <div class="two-col-tight">
-        <div class="field">
-          <label for="f-tdate">Dată plecare</label>
-          <input id="f-tdate" name="travelDate" type="date" class="input" value="${esc(existing?.travelDate || '')}">
-        </div>
-        <div class="field">
-          <label for="f-fdate">Follow-up</label>
-          <input id="f-fdate" name="followUpDate" type="date" class="input" value="${esc(existing?.followUpDate || '')}">
-        </div>
-      </div>
-      <div class="two-col-tight">
-        <div class="field">
-          <label for="f-budget">Buget</label>
-          <input id="f-budget" name="budget" type="number" min="0" class="input" value="${esc(existing?.budget ?? '')}">
-        </div>
-        <div class="field">
-          <label for="f-currency">Monedă</label>
-          <select id="f-currency" name="currency" class="input">${currencyOptionsHtml(existing?.currency || 'EUR')}</select>
-        </div>
-      </div>
-      <div class="two-col-tight">
-        <div class="field">
-          <label for="f-source">Sursă</label>
-          <input id="f-source" name="source" class="input" value="${esc(existing?.source || 'WhatsApp')}">
-        </div>
-        <div class="field">
-          <label for="f-status">Status</label>
-          <select id="f-status" name="status" class="input">
-            ${ENQUIRY_STATUSES.map(
-              (s) => `<option value="${s}" ${(existing?.status || 'Nouă') === s ? 'selected' : ''}>${s}</option>`
-            ).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label for="f-notes">Note</label>
-        <textarea id="f-notes" name="notes" rows="2" class="input">${esc(existing?.notes || '')}</textarea>
-      </div>
-    `;
-  } else if (type === 'booking') {
-    modalTitleEl.textContent = existing?.id ? 'Editează rezervare' : 'Rezervare nouă';
-    modalFieldsEl.innerHTML = `
-      <input type="hidden" name="enquiryId" value="${esc(existing?.enquiryId || '')}">
-      <div class="field">
-        <label for="f-customer">Client existent *</label>
-        <select id="f-customer" name="customerId" class="input">${customerOptionsHtml(existing?.customerId)}</select>
-      </div>
-      <div class="field">
-        <label for="f-new-customer">Sau creează client nou rapid (opțional)</label>
-        <input id="f-new-customer" name="newCustomerName" class="input" placeholder="Lasă gol dacă ai ales din listă">
-      </div>
-      <div class="field">
-        <label for="f-dest">Destinație *</label>
-        <input id="f-dest" name="destination" class="input" required value="${esc(existing?.destination || '')}">
-      </div>
-      <div class="field">
-        <label for="f-supplier">Furnizor / Tour-operator</label>
-        <input id="f-supplier" name="supplier" class="input" value="${esc(existing?.supplier || '')}">
-      </div>
-      <div class="two-col-tight">
-        <div class="field">
-          <label for="f-tdate">Dată plecare</label>
-          <input id="f-tdate" name="travelDate" type="date" class="input" value="${esc(existing?.travelDate || '')}">
-        </div>
-        <div class="field">
-          <label for="f-ddate">Scadență următoare</label>
-          <input id="f-ddate" name="dueDate" type="date" class="input" value="${esc(existing?.dueDate || '')}">
-        </div>
-      </div>
-      <div class="two-col-tight">
-        <div class="field">
-          <label for="f-amount">Valoare *</label>
-          <input id="f-amount" name="amount" type="number" min="0" required class="input" value="${esc(existing?.amount ?? '')}">
-        </div>
-        <div class="field">
-          <label for="f-currency">Monedă</label>
-          <select id="f-currency" name="currency" class="input">${currencyOptionsHtml(existing?.currency || 'EUR')}</select>
-        </div>
-      </div>
-      <div class="field">
-        <label for="f-status">Status</label>
-        <select id="f-status" name="status" class="input">
-          ${BOOKING_STATUSES.map(
-            (s) => `<option value="${s}" ${(existing?.status || 'Opțiune') === s ? 'selected' : ''}>${s}</option>`
-          ).join('')}
-        </select>
-      </div>
-    `;
-  } else if (type === 'task') {
-    modalTitleEl.textContent = 'Sarcină nouă';
-    modalFieldsEl.innerHTML = `
-      <input type="hidden" name="enquiryId" value="${esc(existing?.enquiryId || '')}">
-      <input type="hidden" name="bookingId" value="${esc(existing?.bookingId || '')}">
-      <div class="field">
-        <label for="f-title">Titlu sarcină *</label>
-        <input id="f-title" name="title" class="input" required value="${esc(existing?.title || '')}">
-      </div>
-      <div class="field">
-        <label for="f-due">Dată scadență</label>
-        <input id="f-due" name="dueDate" type="date" class="input" value="${esc(existing?.dueDate || '')}">
-      </div>
-    `;
-  }
-
+function openTripModal(existing = null) {
+  activeModal = { type: 'trip', id: existing?.id || null };
+  modalTitleEl.textContent = existing ? 'Editează Master Trip' : 'Master Trip nou';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="t-title">Titlu sejur *</label><input id="t-title" name="title" class="input" required value="${esc(existing?.title || '')}"></div>
+    <div class="field"><label for="t-dest">Destinație *</label><input id="t-dest" name="destination" class="input" required value="${esc(existing?.destination || '')}"></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="t-dates">Perioadă</label><input id="t-dates" name="dates" class="input" placeholder="2027-06-15 → 2027-06-22" value="${esc(existing?.dates || '')}"></div>
+      <div class="field"><label for="t-pax">Locuri max</label><input id="t-pax" name="maxPax" type="number" min="1" class="input" value="${esc(existing?.maxPax ?? 10)}"></div>
+    </div>
+    <div class="two-col-tight">
+      <div class="field"><label for="t-cost">Cost furnizor / pax</label><input id="t-cost" name="costPerPax" type="number" min="0" class="input" value="${esc(existing?.costPerPax ?? 600)}"></div>
+      <div class="field"><label for="t-price">Preț vânzare / pax</label><input id="t-price" name="pricePerPax" type="number" min="0" class="input" value="${esc(existing?.pricePerPax ?? 800)}"></div>
+    </div>
+    <div class="two-col-tight">
+      <div class="field"><label for="t-fixed">Cost fix grup</label><input id="t-fixed" name="fixedCost" type="number" min="0" class="input" value="${esc(existing?.fixedCost ?? 0)}"></div>
+      <div class="field"><label for="t-cur">Monedă</label><select id="t-cur" name="currency" class="input">${VALID_CURRENCIES.map((c) => `<option value="${c}" ${existing?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label for="t-notes">Note</label><textarea id="t-notes" name="notes" rows="2" class="input">${esc(existing?.notes || '')}</textarea></div>
+  `;
   modalEl.hidden = false;
-  modalFieldsEl.querySelector('input, select')?.focus();
+}
+
+function openApplyModal() {
+  const trip = state.trips.find((t) => t.id === state.selectedTripId);
+  if (!trip) return;
+  activeModal = { type: 'apply', tripId: trip.id };
+  modalTitleEl.textContent = `Aplică la: ${trip.title}`;
+  modalFieldsEl.innerHTML = `
+    <p class="muted small">Simulează aplicarea unui client (stil ATS). Sistemul califică automat aplicantul în funcție de buget (${trip.pricePerPax} ${trip.currency}/pax) și locuri.</p>
+    <div class="field"><label for="a-name">Nume client (sintetic) *</label><input id="a-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="a-pax">Nr. persoane</label><input id="a-pax" name="pax" type="number" min="1" class="input" value="2"></div>
+      <div class="field"><label for="a-budget">Buget / pax (${esc(trip.currency)})</label><input id="a-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(trip.pricePerPax)}"></div>
+    </div>
+    <div class="field"><label for="a-channel">Canal</label><select id="a-channel" name="channel" class="input"><option>Formular Sejur</option><option>WhatsApp</option><option>Instagram</option><option>Email</option></select></div>
+  `;
+  modalEl.hidden = false;
+}
+
+function openTaskModal() {
+  activeModal = { type: 'task' };
+  modalTitleEl.textContent = 'Sarcină nouă';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="tsk-title">Titlu *</label><input id="tsk-title" name="title" class="input" required></div>
+    <div class="field"><label for="tsk-due">Scadență</label><input id="tsk-due" name="dueDate" type="date" class="input"></div>
+    <div class="field"><label for="tsk-trip">Sejur</label><select id="tsk-trip" name="tripId" class="input">${state.trips.map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join('')}</select></div>
+  `;
+  modalEl.hidden = false;
 }
 
 modalFormEl.addEventListener('submit', (e) => {
   e.preventDefault();
   if (!activeModal) return;
-
-  const fd = new FormData(modalFormEl);
-  const data = Object.fromEntries(fd.entries());
-
+  const data = Object.fromEntries(new FormData(modalFormEl).entries());
   const showError = (msg) => {
     modalErrorEl.textContent = msg;
     modalErrorEl.hidden = false;
   };
 
-  const resolveCustomerId = () => {
-    const newName = data.newCustomerName?.trim();
-    if (!newName) return data.customerId;
-    const existing = state.customers.find(
-      (c) => c.name.trim().toLowerCase() === newName.toLowerCase()
-    );
-    if (existing) return existing.id;
-    const created = {
-      id: uid('cust'),
-      name: newName,
-      channel: data.source || 'WhatsApp',
-      note: 'Creat rapid din formular',
-    };
-    state.customers.unshift(created);
-    return created.id;
-  };
-
-  if (activeModal.type === 'customer') {
-    if (!data.name?.trim()) return showError('Numele clientului este obligatoriu.');
-    if (activeModal.id) {
-      Object.assign(state.customers.find((c) => c.id === activeModal.id), {
-        name: data.name.trim(),
-        channel: data.channel,
-        note: data.note.trim(),
-      });
-    } else {
-      state.customers.unshift({
-        id: uid('cust'),
-        name: data.name.trim(),
-        channel: data.channel,
-        note: data.note.trim(),
-      });
-    }
-  } else if (activeModal.type === 'enquiry') {
-    if (!data.destination?.trim()) return showError('Destinația este obligatorie.');
+  if (activeModal.type === 'trip') {
+    if (!data.title?.trim() || !data.destination?.trim()) return showError('Titlul și destinația sunt obligatorii.');
     const payload = {
-      customerId: resolveCustomerId(),
+      title: data.title.trim(),
       destination: data.destination.trim(),
-      travelDate: data.travelDate,
-      followUpDate: data.followUpDate,
-      budget: Number(data.budget || 0),
+      dates: data.dates.trim(),
+      maxPax: Number(data.maxPax || 10),
+      costPerPax: Number(data.costPerPax || 0),
+      pricePerPax: Number(data.pricePerPax || 0),
+      fixedCost: Number(data.fixedCost || 0),
       currency: data.currency || 'EUR',
-      source: data.source.trim(),
-      status: data.status,
       notes: data.notes.trim(),
     };
     if (activeModal.id) {
-      Object.assign(state.enquiries.find((x) => x.id === activeModal.id), payload);
+      Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
     } else {
-      state.enquiries.unshift({ id: uid('enq'), ...payload });
+      const id = uid('trip');
+      state.trips.unshift({ id, ...payload });
+      state.selectedTripId = id;
     }
-  } else if (activeModal.type === 'booking') {
-    if (!data.destination?.trim()) return showError('Destinația este obligatorie.');
-    const amount = Number(data.amount);
-    if (!Number.isFinite(amount) || amount < 0) return showError('Introduceți o valoare validă.');
-    const payload = {
-      enquiryId: data.enquiryId || '',
-      customerId: resolveCustomerId(),
-      destination: data.destination.trim(),
-      supplier: data.supplier.trim(),
-      travelDate: data.travelDate,
-      dueDate: data.dueDate,
-      amount,
-      currency: data.currency || 'EUR',
-      status: data.status,
-    };
-    if (activeModal.id) {
-      Object.assign(state.bookings.find((x) => x.id === activeModal.id), payload);
-    } else {
-      state.bookings.unshift({ id: uid('bk'), ...payload });
-      if (payload.enquiryId) {
-        const linked = state.enquiries.find((x) => x.id === payload.enquiryId);
-        if (linked) linked.status = 'Convertită';
-      }
-    }
-  } else if (activeModal.type === 'task') {
-    if (!data.title?.trim()) return showError('Titlul sarcinii este obligatoriu.');
-    state.tasks.unshift({
-      id: uid('tsk'),
-      title: data.title.trim(),
-      dueDate: data.dueDate,
-      done: false,
-      enquiryId: data.enquiryId || '',
-      bookingId: data.bookingId || '',
+    showToast('Sejur salvat.');
+  } else if (activeModal.type === 'apply') {
+    if (!data.name?.trim()) return showError('Numele clientului este obligatoriu.');
+    const trip = state.trips.find((t) => t.id === activeModal.tripId);
+    const metrics = computeMasterTripMetrics(trip, state.applications);
+    const cust = { id: uid('cust'), name: data.name.trim(), channel: data.channel, note: 'Aplicant sejur' };
+    state.customers.unshift(cust);
+
+    const qual = autoQualifyApplication(
+      trip,
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
+      metrics.confirmedPax
+    );
+    const appId = uid('app');
+    state.applications.unshift({
+      id: appId,
+      tripId: trip.id,
+      customerId: cust.id,
+      pax: Number(data.pax || 1),
+      budgetPerPax: Number(data.budgetPerPax || 0),
+      stage: qual.suggestedStage,
+      qualificationStatus: qual.status,
+      qualificationReasons: qual.reasons,
+      appliedAt: new Date().toISOString().slice(0, 10),
+      notes: [`Azi · ${qual.status}: ${qual.reasons.join('; ')}`],
     });
+    state.selectedAppId = appId;
+    showToast(`Aplicant adăugat: ${qual.status}`);
+  } else if (activeModal.type === 'task') {
+    if (!data.title?.trim()) return showError('Titlul este obligatoriu.');
+    state.tasks.unshift({ id: uid('tsk'), title: data.title.trim(), dueDate: data.dueDate, done: false, tripId: data.tripId });
+    showToast('Sarcină adăugată.');
   }
 
   saveState();
@@ -1010,296 +775,119 @@ modalFormEl.addEventListener('submit', (e) => {
   renderAll();
 });
 
-/* ---------------- OFFER DRAFTS & AI ---------------- */
-
-function readOfferBrief() {
-  return {
-    destination: document.getElementById('offer-destination').value.trim(),
-    dates: document.getElementById('offer-dates').value.trim(),
-    travellersCount: document.getElementById('offer-travellers').value.trim(),
-    budget: document.getElementById('offer-budget').value.trim(),
-    currency: document.getElementById('offer-currency').value,
-    style: document.getElementById('offer-style').value.trim(),
-    notes: document.getElementById('offer-notes').value.trim(),
-  };
-}
-
-document.getElementById('generate-template-offer-btn').addEventListener('click', () => {
-  const b = readOfferBrief();
-  if (!b.destination) {
-    document.getElementById('offer-ai-feedback').textContent = 'Completați destinația.';
-    return;
-  }
-  document.getElementById('offer-editor-title').value = `Schiță ofertă — ${b.destination}`;
-  document.getElementById('offer-editor-body').value = [
-    `PROPUNERE ORIENTATIVĂ DE CĂLĂTORIE`,
-    `Destinație: ${b.destination}`,
-    `Perioadă: ${b.dates || '[DE CONFIRMAT]'}`,
-    `Persoane: ${b.travellersCount || '[DE CONFIRMAT]'}`,
-    `Stil / preferințe: ${b.style || '[DE CONFIRMAT]'}`,
-    `Buget orientativ: ${b.budget ? `${b.budget} ${b.currency}` : '[DE CONFIRMAT]'}`,
-    ``,
-    `Varianta 1: [DE CONFIRMAT — hotel, tip cameră, masă, tarif]`,
-    `Transport / transfer: [DE CONFIRMAT]`,
-    `Note: ${b.notes || '-'}`,
-    ``,
-    `Notă importantă: Aceasta este o schiță informativă. Disponibilitatea, furnizorii și tarifele finale necesită confirmare fermă.`,
-  ].join('\n');
-  syncOfferPrintPreview();
-});
-
-document.getElementById('offer-brief-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const feedback = document.getElementById('offer-ai-feedback');
-  const brief = readOfferBrief();
-  feedback.className = 'feedback-msg';
-  feedback.textContent = 'Se generează schița AI...';
-
-  try {
-    const res = await fetch('/api/offer-draft', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(brief),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      feedback.className = 'feedback-msg is-error';
-      feedback.textContent = data.error || 'Nu s-a putut genera schița AI.';
-      return;
-    }
-    document.getElementById('offer-editor-title').value = `Schiță AI — ${brief.destination}`;
-    document.getElementById('offer-editor-body').value = data.draft;
-    syncOfferPrintPreview();
-    feedback.className = 'feedback-msg is-ok';
-    feedback.textContent = data.disclaimer || 'Schiță generată.';
-  } catch {
-    feedback.className = 'feedback-msg is-error';
-    feedback.textContent = 'Serverul local nu a răspuns. Folosiți șablonul local.';
-  }
-});
-
-document.getElementById('offer-editor-title').addEventListener('input', syncOfferPrintPreview);
-document.getElementById('offer-editor-body').addEventListener('input', syncOfferPrintPreview);
-
-document.getElementById('save-offer-btn').addEventListener('click', () => {
-  const title = document.getElementById('offer-editor-title').value.trim() || 'Schiță fără titlu';
-  const body = document.getElementById('offer-editor-body').value.trim();
-  if (!body) return;
-  state.offers.unshift({
-    id: uid('off'),
-    title,
-    body,
-    updatedAt: new Date().toISOString().slice(0, 10),
-  });
-  saveState();
-  renderSavedOffers();
-  showToast('Schiță salvată local.');
-});
-
-document.getElementById('copy-offer-btn').addEventListener('click', async () => {
-  const title = document.getElementById('offer-editor-title').value.trim();
-  const body = document.getElementById('offer-editor-body').value.trim();
-  if (!body) return showToast('Nu există conținut de copiat.');
-  const text = title ? `*${title}*\n\n${body}` : body;
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast('Schița a fost copiată pentru WhatsApp.');
-  } catch {
-    showToast('Copierea automată a eșuat; selectați textul manual.');
-  }
-});
-
-document.getElementById('print-offer-btn').addEventListener('click', () => {
-  syncOfferPrintPreview();
-  window.print();
-});
-
-/* ---------------- CSV EXPORT & IMPORT ---------------- */
+/* ---------------- CSV & BACKUP ---------------- */
 
 function exportDatasetCsv(kind) {
   let headers = [];
   let rows = [];
-  let filename = `${kind}.csv`;
-
-  if (kind === 'enquiries') {
-    headers = ['client', 'destinatie', 'data_plecare', 'buget', 'moneda', 'sursa', 'status', 'follow_up', 'note'];
-    rows = state.enquiries.map((e) => ({
-      client: getCustomerName(e.customerId),
-      destinatie: e.destination,
-      data_plecare: e.travelDate,
-      buget: e.budget,
-      moneda: e.currency,
-      sursa: e.source,
-      status: e.status,
-      follow_up: e.followUpDate,
-      note: e.notes,
+  if (kind === 'trips') {
+    headers = ['titlu', 'destinatie', 'perioada', 'locuri_max', 'cost_pax', 'pret_pax', 'moneda'];
+    rows = state.trips.map((t) => ({
+      titlu: t.title,
+      destinatie: t.destination,
+      perioada: t.dates,
+      locuri_max: t.maxPax,
+      cost_pax: t.costPerPax,
+      pret_pax: t.pricePerPax,
+      moneda: t.currency,
     }));
-  } else if (kind === 'bookings') {
-    headers = ['client', 'destinatie', 'furnizor', 'data_plecare', 'valoare', 'moneda', 'scadenta', 'status'];
-    rows = state.bookings.map((b) => ({
-      client: getCustomerName(b.customerId),
-      destinatie: b.destination,
-      furnizor: b.supplier,
-      data_plecare: b.travelDate,
-      valoare: b.amount,
-      moneda: b.currency,
-      scadenta: b.dueDate,
-      status: b.status,
+  } else if (kind === 'applications') {
+    headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa'];
+    rows = state.applications.map((a) => ({
+      sejur: state.trips.find((t) => t.id === a.tripId)?.title || '',
+      client: getCustomer(a.customerId).name,
+      pax: a.pax,
+      buget_pax: a.budgetPerPax,
+      calificare: a.qualificationStatus,
+      etapa: a.stage,
     }));
   } else {
     headers = ['nume', 'canal', 'nota'];
-    rows = state.customers.map((c) => ({
-      nume: c.name,
-      canal: c.channel,
-      nota: c.note,
-    }));
+    rows = state.customers.map((c) => ({ nume: c.name, canal: c.channel, nota: c.note }));
   }
-
   const csv = buildCsv(headers, rows);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = `${kind}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function previewCsvImportText(csvText) {
-  const parsed = parseCsvText(csvText);
-  const enrichedExisting = state.enquiries.map((e) => ({
-    ...e,
-    customerName: getCustomerName(e.customerId),
-  }));
-  stagedCsvRows = validateEnquiryImportRows(parsed.rows, enrichedExisting, state.customers);
-
+function previewCsv(text) {
+  const parsed = parseCsvText(text);
+  stagedCsvRows = validateEnquiryImportRows(parsed.rows, [], state.customers);
   const validCount = stagedCsvRows.filter((r) => r.valid).length;
-  const dupCount = stagedCsvRows.filter((r) => r.duplicateOfId || r.duplicateInFile).length;
-
   document.getElementById('csv-preview-card').hidden = false;
-  document.getElementById('csv-preview-summary').textContent =
-    `${stagedCsvRows.length} rânduri citite · ${validCount} valide · ${dupCount} posibile duplicate`;
+  document.getElementById('csv-preview-summary').textContent = `${stagedCsvRows.length} rânduri · ${validCount} valide`;
   document.getElementById('csv-commit-btn').disabled = validCount === 0;
-
   document.getElementById('csv-preview-tbody').innerHTML = stagedCsvRows
-    .map((r) => {
-      let badge = '<span class="badge badge-success">Valid</span>';
-      if (!r.valid) {
-        badge = `<span class="badge badge-danger">${esc(r.errors.join('; '))}</span>`;
-      } else if (r.duplicateOfId || r.duplicateInFile) {
-        badge = '<span class="badge badge-warning">Duplicat detectat</span>';
-      }
-      return `
-      <tr>
-        <td>${r.line}</td>
-        <td>${esc(r.data.customerName || '-')}</td>
-        <td>${esc(r.data.destination || '-')}</td>
-        <td>${esc(r.data.travelDate || '-')}</td>
-        <td>${r.data.budget ? formatMoney(r.data.budget, r.data.currency) : '-'}</td>
-        <td>${badge}</td>
-      </tr>`;
-    })
+    .map(
+      (r) => `
+    <tr>
+      <td>${r.line}</td>
+      <td>${esc(r.data.customerName || '-')}</td>
+      <td>${esc(r.data.destination || '-')}</td>
+      <td>${r.data.budget ? fmtMoney(r.data.budget, r.data.currency) : '-'}</td>
+      <td><span class="badge ${r.valid ? 'badge-profit' : 'badge-danger'}">${r.valid ? 'Valid' : esc(r.errors.join('; '))}</span></td>
+    </tr>`
+    )
     .join('');
 }
 
 document.getElementById('csv-file-input').addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const text = await file.text();
-  previewCsvImportText(text);
+  const f = e.target.files?.[0];
+  if (f) previewCsv(await f.text());
 });
 
 document.getElementById('csv-sample-btn').addEventListener('click', () => {
-  const sample = [
-    'client,destinatie,data_plecare,buget,moneda,sursa,status,follow_up,note',
-    'Client Demo Nou,Tenerife Spania,2027-05-12,2100,EUR,WhatsApp,Nouă,2026-11-22,2 adulți hotel 4*',
-    'Familie Demo Ionescu,Antalya Turcia,2027-06-15,2400,EUR,WhatsApp,Ofertată,2026-11-20,Exemplu duplicat',
-    ',Lisabona Portugalia,12-05-2027,-100,GBP,Email,Nouă,,Rând invalid pentru test',
-  ].join('\n');
-  previewCsvImportText(sample);
+  previewCsv(
+    [
+      'client,destinatie,data_plecare,buget,moneda',
+      'Ioana Demo,Svalbard,2027-03-14,1900,EUR',
+      ',Roma,14-03-2027,-10,GBP',
+    ].join('\n')
+  );
 });
 
 document.getElementById('csv-commit-btn').addEventListener('click', () => {
-  const dupMode = document.getElementById('csv-duplicate-mode').value;
-  let imported = 0;
-  let updated = 0;
-  let skipped = 0;
-
-  for (const row of stagedCsvRows) {
-    if (!row.valid) {
-      skipped += 1;
-      continue;
-    }
-
-    if (row.duplicateOfId && dupMode === 'skip') {
-      skipped += 1;
-      continue;
-    }
-
-    let customer = state.customers.find(
-      (c) => c.name.trim().toLowerCase() === row.data.customerName.toLowerCase()
-    );
-    if (!customer) {
-      customer = {
-        id: uid('cust'),
-        name: row.data.customerName,
-        channel: row.data.source || 'Import CSV',
-        note: 'Creat automat la import CSV',
-      };
-      state.customers.push(customer);
-    }
-
-    if (row.duplicateOfId && dupMode === 'overwrite') {
-      const target = state.enquiries.find((e) => e.id === row.duplicateOfId);
-      if (target) {
-        Object.assign(target, {
-          customerId: customer.id,
-          destination: row.data.destination,
-          travelDate: row.data.travelDate,
-          followUpDate: row.data.followUpDate,
-          budget: row.data.budget,
-          currency: row.data.currency,
-          source: row.data.source,
-          status: row.data.status,
-          notes: row.data.notes,
-        });
-        updated += 1;
-        continue;
-      }
-    }
-
-    state.enquiries.unshift({
-      id: uid('enq'),
-      customerId: customer.id,
-      destination: row.data.destination,
-      travelDate: row.data.travelDate,
-      followUpDate: row.data.followUpDate,
-      budget: row.data.budget,
-      currency: row.data.currency,
-      source: row.data.source,
-      status: row.data.status,
-      notes: row.data.notes,
+  const trip = state.trips[0];
+  if (!trip) return;
+  let added = 0;
+  for (const r of stagedCsvRows) {
+    if (!r.valid) continue;
+    const cust = { id: uid('cust'), name: r.data.customerName, channel: 'Import CSV', note: '' };
+    state.customers.unshift(cust);
+    const qual = autoQualifyApplication(trip, { pax: 1, budgetPerPax: r.data.budget }, 0);
+    state.applications.unshift({
+      id: uid('app'),
+      tripId: trip.id,
+      customerId: cust.id,
+      pax: 1,
+      budgetPerPax: r.data.budget,
+      stage: qual.suggestedStage,
+      qualificationStatus: qual.status,
+      qualificationReasons: qual.reasons,
+      appliedAt: new Date().toISOString().slice(0, 10),
+      notes: ['Importat din CSV'],
     });
-    imported += 1;
+    added += 1;
   }
-
   saveState();
   renderAll();
-  document.getElementById('csv-preview-summary').textContent =
-    `Import finalizat: ${imported} adăugate, ${updated} actualizate, ${skipped} sărite.`;
+  showToast(`${added} aplicanți importați.`);
   document.getElementById('csv-commit-btn').disabled = true;
 });
 
 document.getElementById('backup-json-btn').addEventListener('click', () => {
-  const json = JSON.stringify(state, null, 2);
-  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `travelagencyos-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `garlic-demo-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast('Backup JSON descărcat.');
 });
 
 document.getElementById('restore-json-input').addEventListener('change', async (e) => {
@@ -1307,53 +895,23 @@ document.getElementById('restore-json-input').addEventListener('change', async (
   if (!file) return;
   try {
     const parsed = JSON.parse(await file.text());
-    if (
-      !parsed ||
-      !Array.isArray(parsed.customers) ||
-      !Array.isArray(parsed.enquiries) ||
-      !Array.isArray(parsed.bookings) ||
-      !Array.isArray(parsed.tasks)
-    ) {
-      showToast('Fișier JSON invalid pentru TravelAgencyOS.');
-      return;
+    if (!Array.isArray(parsed.trips) || !Array.isArray(parsed.applications)) {
+      return showToast('Fișier JSON invalid.');
     }
-    state = {
-      customers: parsed.customers,
-      enquiries: parsed.enquiries,
-      bookings: parsed.bookings,
-      tasks: parsed.tasks,
-      offers: Array.isArray(parsed.offers) ? parsed.offers : [],
-    };
+    state = parsed;
     saveState();
     renderAll();
-    showToast('Backup JSON restaurat.');
+    showToast('Backup restaurat.');
   } catch {
-    showToast('Nu s-a putut citi fișierul JSON.');
-  } finally {
-    e.target.value = '';
+    showToast('Eroare la citirea JSON.');
   }
 });
-
-/* ---------------- INIT ---------------- */
 
 document.getElementById('reset-demo-btn').addEventListener('click', () => {
   state = createSeedState();
   saveState();
   renderAll();
+  showToast('Date demo Garlic Trips resetate.');
 });
 
-async function checkServerHealth() {
-  const pill = document.getElementById('ai-status-pill');
-  try {
-    const res = await fetch('/api/health');
-    const data = await res.json();
-    pill.textContent = data.geminiConfigured
-      ? 'Server local · Gemini activ'
-      : 'Server local · Mod offline (fără cheie AI)';
-  } catch {
-    pill.textContent = 'Mod local';
-  }
-}
-
-checkServerHealth();
 renderAll();

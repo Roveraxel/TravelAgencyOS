@@ -6,21 +6,14 @@
 ## Current State
 
 - Dependency-free Node.js 20+ server (`server.mjs`) serving `public/` on `http://127.0.0.1:4173`.
-- Optional Gemini offer-draft proxy (`POST /api/offer-draft`) with:
-  - Server-side `GEMINI_API_KEY` check (returns `503` with Romanian setup message when unset).
-  - In-memory rate limit (10 req/min).
-  - Strict input minimization (`sanitizeOfferBrief` strips unexpected/PII fields).
-- Responsive Romanian-first UI (`public/index.html`, `public/styles.css`, `public/app.js`) with:
-  - Explicit local-only prototype warning banner and toast feedback (`#toast-region`).
-  - Dashboard KPIs (active enquiries, active bookings, totals by explicit currency, open tasks).
-  - Enquiries CRUD + inline status quick-change + inline rapid customer creation + **Table / Kanban Pipeline** view toggle + **Convert to Booking** (`Convertește`) + **+ Sarcină** + **Schiță** prefill + delete.
-  - Bookings CRUD + inline rapid customer creation + **+ Sarcină** linked to booking + delete.
-  - Synthetic demo Customers CRUD + delete protection when linked to enquiries/bookings.
-  - Tasks & follow-up checklist linked to enquiries/bookings.
-  - Overdue / Today / Soon due-date badges (`public/date-utils.js`) on follow-ups, booking due dates, and tasks.
-  - Offer Drafts: anonymized brief form, local template generator fallback, optional Gemini AI draft, save/edit/delete, **Copy for WhatsApp**, and clean `@media print` / PDF view.
-  - CSV Export (UTF-8 BOM for Enquiries, Bookings, Customers), CSV Import (`public/csv-utils.js`) with preview table, row-level validation, and duplicate handling (`skip` / `overwrite` / `create`), plus full local JSON Backup & Restore.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (6/6 passing offline).
+- Optional Gemini offer-draft proxy (`POST /api/offer-draft`) with server-side `GEMINI_API_KEY`, 10 req/min rate limit, and strict input minimization.
+- **Trip-First ATS Workspace (Garlic Trips Demo)** (`public/index.html`, `public/styles.css`, `public/app.js`, `public/trip-utils.js`):
+  - **Garlic Trail-inspired palette** (pine `#1B3B2B`, warm parchment `#FAF8F4`, terracotta `#C85A32`, emerald profit badges).
+  - **Master Trips** as the primary object (`Svalbard Arctic Expedition`, `Maramureș & Bucovina Trail`, `Vietnam & Cambodgia`) with live **Cost / Revenue / Profit** calculation (`computeMasterTripMetrics`).
+  - **Customer Apply Simulator + Auto-Qualification** (`autoQualifyApplication`): customers apply to a Master Trip and are automatically qualified (`Calificat automat`, `Necesită verificare`, `Buget sub prag`) into the 3-pane Lever/Greenhouse-style ATS pipeline.
+  - **Offer Master & Print/PDF** tab with optional Gemini AI draft, WhatsApp copy, and `@media print`.
+  - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (8/8 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

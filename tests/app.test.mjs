@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication } from '../public/trip-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
 test('parseCsvText handles UTF-8 BOM, semicolons, and quoted commas', () => {
@@ -115,4 +116,32 @@ test('getDueStatus and getDueLabel classify overdue, today, soon, and ok dates',
   assert.equal(getDueLabel('soon'), 'În curând');
   assert.equal(getDueStatus('2026-11-25', today), 'ok');
   assert.equal(getDueStatus('', today), 'none');
+});
+
+test('computeMasterTripMetrics calculates cost, revenue, and profit accurately', () => {
+  const trip = { id: 't1', maxPax: 10, costPerPax: 600, pricePerPax: 800, fixedCost: 200, currency: 'EUR' };
+  const apps = [
+    { tripId: 't1', pax: 2, stage: 'Confirmat' },
+    { tripId: 't1', pax: 2, stage: 'Avans achitat' },
+    { tripId: 't1', pax: 3, stage: 'Respins' },
+  ];
+  const m = computeMasterTripMetrics(trip, apps);
+  assert.equal(m.confirmedPax, 4);
+  assert.equal(m.totalCost, 4 * 600 + 200);
+  assert.equal(m.totalRevenue, 4 * 800);
+  assert.equal(m.profit, 600);
+  assert.equal(m.spotsRemaining, 6);
+});
+
+test('autoQualifyApplication classifies budget fit and capacity limits', () => {
+  const trip = { maxPax: 4, pricePerPax: 1000, currency: 'EUR' };
+  const ok = autoQualifyApplication(trip, { pax: 2, budgetPerPax: 950 }, 1);
+  assert.equal(ok.status, 'Calificat automat');
+  assert.equal(ok.suggestedStage, 'Calificat');
+
+  const low = autoQualifyApplication(trip, { pax: 1, budgetPerPax: 700 }, 1);
+  assert.equal(low.status, 'Buget sub prag');
+
+  const full = autoQualifyApplication(trip, { pax: 2, budgetPerPax: 1000 }, 3);
+  assert.equal(full.status, 'Necesită verificare');
 });

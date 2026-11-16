@@ -3,428 +3,153 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TravelAgencyOS — Spațiu de lucru agenție (Prototip local)</title>
+  <title>TravelAgencyOS — Garlic Trips Demo (Trip-First ATS)</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar no-print" aria-label="Navigație principală">
+  <header class="topbar no-print">
+    <div class="topbar-left">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">TO</span>
-        <div>
-          <div class="brand-title">TravelAgencyOS</div>
-          <div class="brand-subtitle">Workspace agenție</div>
-        </div>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>TravelAgencyOS · Garlic Demo</span>
       </div>
-
-      <nav class="nav-list" role="tablist" aria-orientation="vertical">
-        <button type="button" class="nav-btn is-active" data-view="dashboard" role="tab" aria-selected="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
-          Panou general
-        </button>
-        <button type="button" class="nav-btn" data-view="enquiries" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Cereri
-        </button>
-        <button type="button" class="nav-btn" data-view="bookings" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
-          Rezervări
-        </button>
-        <button type="button" class="nav-btn" data-view="customers" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Clienți
-        </button>
-        <button type="button" class="nav-btn" data-view="tasks" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          Sarcini &amp; Follow-up
-        </button>
-        <button type="button" class="nav-btn" data-view="offers" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          Schițe ofertă &amp; Print
-        </button>
-        <button type="button" class="nav-btn" data-view="csv" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Import / Export CSV
-        </button>
+      <nav class="top-nav" role="tablist" aria-label="Navigație principală">
+        <button type="button" class="top-nav-btn is-active" data-view="trips" role="tab" aria-selected="true">Sejururi (Master)</button>
+        <button type="button" class="top-nav-btn" data-view="tasks" role="tab" aria-selected="false">Scadențe &amp; Sarcini</button>
+        <button type="button" class="top-nav-btn" data-view="customers" role="tab" aria-selected="false">Clienți</button>
+        <button type="button" class="top-nav-btn" data-view="csv" role="tab" aria-selected="false">Import / Export CSV</button>
       </nav>
+    </div>
+    <div class="topbar-right">
+      <span class="local-pill" title="Date salvate exclusiv în localStorage; nu introduceți CNP sau date reale">
+        Prototip local · Fără PII real
+      </span>
+      <button type="button" id="reset-demo-btn" class="btn btn-secondary btn-sm">Resetează demo</button>
+      <button type="button" id="new-trip-btn" class="btn btn-accent btn-sm">+ Sejur nou</button>
+    </div>
+  </header>
 
-      <div class="sidebar-footer">
-        <div class="local-notice-card" role="status">
-          <strong>Prototip local (localStorage)</strong>
-          Datele demo sunt fictive. Nu introduceți date personale reale (CNP, pașaport, email/telefon) fără backend.
-        </div>
-        <div id="ai-status-pill" class="status-pill">Verificare server...</div>
-        <button type="button" id="reset-demo-btn" class="btn btn-ghost btn-sm">
-          Resetează date demo
-        </button>
+  <!-- VIEW 1: TRIP-FIRST ATS (3-PANE MASTER TRIP WORKSPACE) -->
+  <section id="view-trips" class="view-section ats-shell">
+    <aside class="ats-rail-left no-print" aria-label="Sejururi Master">
+      <div class="rail-header">
+        <span>Sejururi active</span>
+        <span id="trips-count-badge">0</span>
       </div>
+      <div id="master-trips-list"></div>
     </aside>
 
-    <main class="main-content">
-      <!-- DASHBOARD -->
-      <section id="view-dashboard" class="view-section is-active" aria-labelledby="heading-dashboard">
-        <header class="page-header">
-          <div>
-            <h1 id="heading-dashboard">Panou general</h1>
-            <p class="muted">Privire rapidă asupra cererilor, rezervărilor și sarcinilor de azi.</p>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="btn btn-primary" data-open-modal="enquiry">+ Cerere nouă</button>
-            <button type="button" class="btn btn-secondary" data-open-modal="booking">+ Rezervare nouă</button>
-          </div>
-        </header>
+    <main class="ats-center" id="master-trip-center"></main>
 
-        <div class="kpi-grid" id="dashboard-kpis"></div>
+    <aside class="ats-rail-right no-print" id="applicant-detail-rail" aria-label="Detalii aplicant selectat"></aside>
+  </section>
 
-        <div class="two-col">
-          <div class="card">
-            <div class="card-header">
-              <h2>Sarcini prioritare / scadente</h2>
-              <button type="button" class="btn btn-ghost btn-sm" data-nav-jump="tasks">Vezi toate</button>
-            </div>
-            <div id="dashboard-tasks"></div>
-          </div>
+  <!-- VIEW 2: TASKS & DUE DATES -->
+  <section id="view-tasks" class="view-section page-container" hidden>
+    <div class="page-header">
+      <div>
+        <h1>Scadențe &amp; Sarcini</h1>
+        <p class="muted small">Follow-up-uri și termene de plată legate de sejururi.</p>
+      </div>
+      <button type="button" id="new-task-btn" class="btn btn-primary btn-sm">+ Sarcină nouă</button>
+    </div>
+    <div id="tasks-list" class="stack"></div>
+  </section>
 
-          <div class="card">
-            <div class="card-header">
-              <h2>Cereri recente în lucru</h2>
-              <button type="button" class="btn btn-ghost btn-sm" data-nav-jump="enquiries">Vezi toate</button>
-            </div>
-            <div id="dashboard-enquiries"></div>
-          </div>
+  <!-- VIEW 3: CUSTOMERS (SYNTHETIC) -->
+  <section id="view-customers" class="view-section page-container" hidden>
+    <div class="page-header">
+      <div>
+        <h1>Clienți (date demo sintetice)</h1>
+        <p class="muted small">Istoricul aplicațiilor la sejururi per client.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nume</th>
+            <th>Canal</th>
+            <th>Sejururi aplicate</th>
+            <th>Notă</th>
+          </tr>
+        </thead>
+        <tbody id="customers-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- VIEW 4: CSV IMPORT / EXPORT & JSON BACKUP -->
+  <section id="view-csv" class="view-section page-container" hidden>
+    <div class="page-header">
+      <div>
+        <h1>Import / Export CSV &amp; Backup</h1>
+        <p class="muted small">Export UTF-8 BOM compatibil Excel sau import cereri cu validare per rând.</p>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h2>Export CSV &amp; Backup local JSON</h2>
+        <div class="form-actions" style="margin-top:12px">
+          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="trips">Exportă Sejururi (.csv)</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="applications">Exportă Aplicanți (.csv)</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="customers">Exportă Clienți (.csv)</button>
         </div>
-      </section>
+        <hr class="divider">
+        <div class="form-actions">
+          <button type="button" id="backup-json-btn" class="btn btn-secondary btn-sm">Descarcă backup JSON</button>
+          <label class="btn btn-ghost btn-sm" for="restore-json-input">Restaurează din JSON</label>
+          <input id="restore-json-input" type="file" accept=".json,application/json" hidden>
+        </div>
+      </div>
 
-      <!-- ENQUIRIES -->
-      <section id="view-enquiries" class="view-section" aria-labelledby="heading-enquiries" hidden>
-        <header class="page-header">
-          <div>
-            <h1 id="heading-enquiries">Cereri de ofertă</h1>
-            <p class="muted">Urmăriți solicitările din WhatsApp, telefon, email sau recomandări.</p>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="btn btn-primary" data-open-modal="enquiry">+ Cerere nouă</button>
-          </div>
-        </header>
-
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <input type="search" id="enquiry-search" class="input" placeholder="Caută după client, destinație sau sursă..." aria-label="Caută cereri">
-            <select id="enquiry-status-filter" class="input" aria-label="Filtrează după status">
-              <option value="">Toate statusurile</option>
-              <option value="Nouă">Nouă</option>
-              <option value="Ofertată">Ofertată</option>
-              <option value="În negociere">În negociere</option>
-              <option value="Convertită">Convertită</option>
-              <option value="Pierdută">Pierdută</option>
+      <div class="card">
+        <h2>Import Aplicanți / Cereri din CSV</h2>
+        <p class="muted small">Coloane: <code>client</code>*, <code>destinatie</code>*, <code>data_plecare</code>, <code>buget</code>, <code>moneda</code>.</p>
+        <div class="form-stack" style="margin-top:10px">
+          <input id="csv-file-input" type="file" accept=".csv,text/csv" class="input">
+          <div class="form-actions">
+            <select id="csv-duplicate-mode" class="input" style="width:auto">
+              <option value="skip">Sari peste duplicate</option>
+              <option value="overwrite">Actualizează existent</option>
+              <option value="create">Importă ca nou</option>
             </select>
-          </div>
-          <div class="segmented" role="group" aria-label="Mod afișare cereri">
-            <button type="button" class="segmented-btn is-active" data-enquiry-layout="table">Tabel</button>
-            <button type="button" class="segmented-btn" data-enquiry-layout="kanban">Pipeline</button>
+            <button type="button" id="csv-sample-btn" class="btn btn-ghost btn-sm">Exemplu CSV</button>
+            <button type="button" id="csv-commit-btn" class="btn btn-primary btn-sm" disabled>Importă valide</button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div id="enquiries-table-wrap" class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Destinație &amp; Dată</th>
-                <th>Buget</th>
-                <th>Sursă</th>
-                <th>Status</th>
-                <th>Follow-up</th>
-                <th>Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody id="enquiries-tbody"></tbody>
-          </table>
-        </div>
-
-        <div id="enquiries-kanban" class="kanban-grid" hidden></div>
-      </section>
-
-      <!-- BOOKINGS -->
-      <section id="view-bookings" class="view-section" aria-labelledby="heading-bookings" hidden>
-        <header class="page-header">
-          <div>
-            <h1 id="heading-bookings">Rezervări</h1>
-            <p class="muted">Monitorizați furnizorii, scadențele de plată și statusul rezervărilor.</p>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="btn btn-primary" data-open-modal="booking">+ Rezervare nouă</button>
-          </div>
-        </header>
-
-        <div class="toolbar">
-          <input type="search" id="booking-search" class="input" placeholder="Caută după client, destinație sau furnizor..." aria-label="Caută rezervări">
-          <select id="booking-status-filter" class="input" aria-label="Filtrează rezervările după status">
-            <option value="">Toate statusurile</option>
-            <option value="Opțiune">Opțiune</option>
-            <option value="Confirmată">Confirmată</option>
-            <option value="Achitată parțial">Achitată parțial</option>
-            <option value="Achitată integral">Achitată integral</option>
-            <option value="Anulată">Anulată</option>
-          </select>
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Destinație &amp; Plecare</th>
-                <th>Furnizor</th>
-                <th>Valoare</th>
-                <th>Scadență</th>
-                <th>Status</th>
-                <th>Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody id="bookings-tbody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- CUSTOMERS -->
-      <section id="view-customers" class="view-section" aria-labelledby="heading-customers" hidden>
-        <header class="page-header">
-          <div>
-            <h1 id="heading-customers">Clienți (date demo sintetice)</h1>
-            <p class="muted">Listă de contacte asociate cererilor și rezervărilor.</p>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="btn btn-primary" data-open-modal="customer">+ Client nou</button>
-          </div>
-        </header>
-
-        <div class="toolbar">
-          <input type="search" id="customer-search" class="input" placeholder="Caută client..." aria-label="Caută clienți">
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Nume</th>
-                <th>Canal preferat</th>
-                <th>Notă contact (sintetic)</th>
-                <th>Cereri</th>
-                <th>Rezervări</th>
-                <th>Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody id="customers-tbody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- TASKS -->
-      <section id="view-tasks" class="view-section" aria-labelledby="heading-tasks" hidden>
-        <header class="page-header">
-          <div>
-            <h1 id="heading-tasks">Sarcini &amp; Follow-up</h1>
-            <p class="muted">Reamintiri pentru oferte, opțiuni expirabile și încasări.</p>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="btn btn-primary" data-open-modal="task">+ Sarcină nouă</button>
-          </div>
-        </header>
-
-        <div class="toolbar">
-          <select id="task-filter" class="input" aria-label="Filtrează sarcinile">
-            <option value="open">De făcut</option>
-            <option value="done">Finalizate</option>
-            <option value="all">Toate</option>
-          </select>
-        </div>
-
-        <div id="tasks-list" class="stack"></div>
-      </section>
-
-      <!-- OFFER DRAFTS & PRINT -->
-      <section id="view-offers" class="view-section" aria-labelledby="heading-offers" hidden>
-        <header class="page-header no-print">
-          <div>
-            <h1 id="heading-offers">Schițe de ofertă &amp; Print</h1>
-            <p class="muted">
-              Generați și editați schițe în limba română. Elementele neconfirmate sunt marcate cu <code>[DE CONFIRMAT]</code>.
-            </p>
-          </div>
-        </header>
-
-        <div class="two-col">
-          <div class="card no-print">
-            <h2>Brief anonimizat pentru schiță</h2>
-            <p class="muted small">
-              Nu introduceți nume reale, email, telefon sau date de identitate dacă folosiți modul AI gratuit.
-            </p>
-            <form id="offer-brief-form" class="form-stack">
-              <div class="field">
-                <label for="offer-destination">Destinație *</label>
-                <input id="offer-destination" class="input" required placeholder="ex. Creta, Grecia">
-              </div>
-              <div class="two-col-tight">
-                <div class="field">
-                  <label for="offer-dates">Perioadă</label>
-                  <input id="offer-dates" class="input" placeholder="ex. 12-19 iunie 2027">
-                </div>
-                <div class="field">
-                  <label for="offer-travellers">Nr. persoane</label>
-                  <input id="offer-travellers" class="input" placeholder="ex. 2 adulți, 1 copil">
-                </div>
-              </div>
-              <div class="two-col-tight">
-                <div class="field">
-                  <label for="offer-budget">Buget orientativ</label>
-                  <input id="offer-budget" type="number" min="0" class="input" placeholder="ex. 1800">
-                </div>
-                <div class="field">
-                  <label for="offer-currency">Monedă</label>
-                  <select id="offer-currency" class="input">
-                    <option value="EUR">EUR</option>
-                    <option value="RON">RON</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </div>
-              </div>
-              <div class="field">
-                <label for="offer-style">Stil / preferințe</label>
-                <input id="offer-style" class="input" placeholder="ex. All Inclusive, aproape de plajă, zbor direct">
-              </div>
-              <div class="field">
-                <label for="offer-notes">Note scurte (anonimizate)</label>
-                <textarea id="offer-notes" rows="2" class="input" placeholder="ex. Transfer inclus, cameră cu vedere parțială la mare"></textarea>
-              </div>
-              <div class="form-actions">
-                <button type="button" id="generate-template-offer-btn" class="btn btn-secondary">
-                  Generează din șablon local
-                </button>
-                <button type="submit" id="generate-ai-offer-btn" class="btn btn-primary">
-                  Generează schiță AI (Gemini)
-                </button>
-              </div>
-              <div id="offer-ai-feedback" class="feedback-msg" role="status" aria-live="polite"></div>
-            </form>
-
-            <hr class="divider">
-            <h3>Schițe salvate</h3>
-            <div id="saved-offers-list" class="stack"></div>
-          </div>
-
-          <div class="card print-sheet">
-            <div class="card-header no-print">
-              <h2>Previzualizare &amp; Editare schiță</h2>
-              <div class="header-actions">
-                <button type="button" id="copy-offer-btn" class="btn btn-secondary btn-sm">Copiază pentru WhatsApp</button>
-                <button type="button" id="save-offer-btn" class="btn btn-secondary btn-sm">Salvează schița</button>
-                <button type="button" id="print-offer-btn" class="btn btn-primary btn-sm">Print / Salvează PDF</button>
-              </div>
-            </div>
-
-            <div class="print-only-header">
-              <strong>Schiță orientativă de călătorie — TravelAgencyOS</strong>
-              <p class="small muted">Document informativ. Disponibilitatea, furnizorii și tarifele finale necesită confirmare.</p>
-            </div>
-
-            <div class="field no-print">
-              <label for="offer-editor-title">Titlu schiță</label>
-              <input id="offer-editor-title" class="input" placeholder="ex. Ofertă orientativă Creta — Iunie 2027">
-            </div>
-            <div class="field no-print">
-              <label for="offer-editor-body">Conținut schiță (editabil înainte de print)</label>
-              <textarea id="offer-editor-body" rows="16" class="input mono-area"></textarea>
-            </div>
-
-            <div id="offer-print-preview" class="offer-print-preview" aria-label="Previzualizare tipărire"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- CSV IMPORT / EXPORT -->
-      <section id="view-csv" class="view-section" aria-labelledby="heading-csv" hidden>
-        <header class="page-header">
-          <div>
-            <h1 id="heading-csv">Import / Export CSV</h1>
-            <p class="muted">Exportați datele în format compatibil Excel (UTF-8 BOM) sau importați cereri cu validare per rând.</p>
-          </div>
-        </header>
-
-        <div class="two-col">
-          <div class="card">
-            <h2>Export CSV &amp; Backup local JSON</h2>
-            <p class="muted small">Exportați tabelele în CSV (UTF-8 BOM) sau salvați un backup complet JSON al spațiului local.</p>
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" data-export-csv="enquiries">Exportă Cereri (.csv)</button>
-              <button type="button" class="btn btn-secondary" data-export-csv="bookings">Exportă Rezervări (.csv)</button>
-              <button type="button" class="btn btn-secondary" data-export-csv="customers">Exportă Clienți (.csv)</button>
-            </div>
-            <hr class="divider">
-            <div class="form-actions">
-              <button type="button" id="backup-json-btn" class="btn btn-secondary btn-sm">Descarcă backup JSON</button>
-              <label class="btn btn-ghost btn-sm" for="restore-json-input">Restaurează din JSON</label>
-              <input id="restore-json-input" type="file" accept=".json,application/json" hidden>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>Import Cereri din CSV</h2>
-            <p class="muted small">
-              Coloane acceptate: <code>client</code>*, <code>destinatie</code>*, <code>data_plecare</code> (YYYY-MM-DD), <code>buget</code>, <code>moneda</code> (EUR/RON/USD), <code>sursa</code>, <code>status</code>, <code>follow_up</code>, <code>note</code>.
-            </p>
-            <div class="form-stack">
-              <div class="field">
-                <label for="csv-file-input">Alege fișier .csv</label>
-                <input id="csv-file-input" type="file" accept=".csv,text/csv" class="input">
-              </div>
-              <div class="field">
-                <label for="csv-duplicate-mode">Gestionare duplicate (client + destinație + dată plecare)</label>
-                <select id="csv-duplicate-mode" class="input">
-                  <option value="skip">Sari peste duplicate</option>
-                  <option value="overwrite">Actualizează cererea existentă</option>
-                  <option value="create">Importă oricum ca cerere nouă</option>
-                </select>
-              </div>
-              <div class="form-actions">
-                <button type="button" id="csv-sample-btn" class="btn btn-ghost btn-sm">Încarcă exemplu CSV</button>
-                <button type="button" id="csv-commit-btn" class="btn btn-primary" disabled>Importă rândurile valide</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="csv-preview-card" class="card" hidden>
-          <div class="card-header">
-            <h2>Previzualizare &amp; Validare Import</h2>
-            <span id="csv-preview-summary" class="muted small"></span>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Linie</th>
-                  <th>Client</th>
-                  <th>Destinație</th>
-                  <th>Plecare</th>
-                  <th>Buget</th>
-                  <th>Status validare</th>
-                </tr>
-              </thead>
-              <tbody id="csv-preview-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
+    <div id="csv-preview-card" class="card" style="margin-top:16px" hidden>
+      <div class="page-header" style="margin-bottom:10px">
+        <h2 style="margin:0;font-size:1rem">Previzualizare CSV</h2>
+        <span id="csv-preview-summary" class="muted small"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Linie</th>
+              <th>Client</th>
+              <th>Destinație</th>
+              <th>Buget</th>
+              <th>Validare</th>
+            </tr>
+          </thead>
+          <tbody id="csv-preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
   <!-- MODAL REUTILIZABIL -->
   <div id="app-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
     <div class="modal-panel">
       <div class="modal-header">
         <h2 id="modal-title">Formular</h2>
-        <button type="button" id="modal-close-btn" class="btn btn-ghost btn-sm" aria-label="Închide fereastra">✕</button>
+        <button type="button" id="modal-close-btn" class="btn btn-ghost btn-sm" aria-label="Închide">✕</button>
       </div>
       <form id="modal-form" class="form-stack" novalidate>
         <div id="modal-fields" class="form-stack"></div>
@@ -438,7 +163,6 @@
   </div>
 
   <div id="toast-region" class="toast-region no-print" aria-live="polite"></div>
-
   <script type="module" src="/app.js"></script>
 </body>
 </html>
