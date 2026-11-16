@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText, buildBillingExportRows, buildSocialPostText } from '../public/trip-utils.js';
 import { renderMessageTemplate, parseInboundEmailText } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
@@ -287,4 +287,29 @@ test('buildGeneratedDocumentText separates Client Itinerary from Supplier Roomin
   const supplierDoc = buildGeneratedDocumentText('supplier_rooming', trip, apps, customers);
   assert.ok(supplierDoc.includes('Cam. 1 (Double, 2 pax): Radu Demo'));
   assert.equal(supplierDoc.includes('1850'), false);
+});
+
+test('buildBillingExportRows and buildSocialPostText generate accounting and promo outputs', () => {
+  const trip = {
+    id: 'trip-1',
+    title: 'Svalbard',
+    destination: 'Longyearbyen',
+    dates: '2027-03-14',
+    maxPax: 10,
+    pricePerPax: 1000,
+    currency: 'EUR',
+    publicSummary: 'Expediție arctică.',
+  };
+  const customers = [{ id: 'c1', name: 'Radu Demo' }];
+  const apps = [{ tripId: 'trip-1', customerId: 'c1', pax: 2, depositPaid: true, stage: 'Avans achitat' }];
+
+  const rows = buildBillingExportRows(trip, apps, customers);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].total, 2000);
+  assert.equal(rows[0].avans_30_proc, 600);
+  assert.equal(rows[0].rest_plata, 1400);
+
+  const post = buildSocialPostText(trip, apps, 'https://example.com');
+  assert.ok(post.includes('8 locuri libere'));
+  assert.ok(post.includes('https://example.com/?apply=trip-1'));
 });

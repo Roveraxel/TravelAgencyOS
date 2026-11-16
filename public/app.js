@@ -16,6 +16,8 @@ import {
   analyzeRooming,
   buildHotelRoomingRows,
   buildGeneratedDocumentText,
+  buildBillingExportRows,
+  buildSocialPostText,
 } from '/trip-utils.js';
 import { MESSAGE_TEMPLATES, renderMessageTemplate, parseInboundEmailText } from '/template-utils.js';
 import { icon, channelIcon } from '/icons.js';
@@ -193,6 +195,7 @@ let activeModal = null;
 let stagedCsvRows = [];
 let linkedExcelHandle = null;
 let selectedTemplateId = MESSAGE_TEMPLATES[0].id;
+let applicantFilter = 'all';
 
 function loadState() {
   try {
@@ -344,7 +347,17 @@ function renderMasterTripCenter(trip) {
 
   let tabBodyHtml = '';
   if (state.activeCenterTab === 'applicants') {
+    const filteredApps = tripApps.filter((a) => {
+      if (applicantFilter === 'ok') return a.qualificationStatus === 'Calificat automat';
+      if (applicantFilter === 'confirmed') return ['Avans achitat', 'Confirmat'].includes(a.stage);
+      return true;
+    });
     tabBodyHtml = `
+      <div class="header-actions no-print" style="margin-bottom:8px">
+        <button type="button" class="btn btn-sm ${applicantFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="all">Toți (${tripApps.length})</button>
+        <button type="button" class="btn btn-sm ${applicantFilter === 'ok' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="ok">● OK</button>
+        <button type="button" class="btn btn-sm ${applicantFilter === 'confirmed' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="confirmed">Avans / Confirmat</button>
+      </div>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -358,9 +371,9 @@ function renderMasterTripCenter(trip) {
           </thead>
           <tbody>
             ${
-              tripApps.length === 0
-                ? '<tr><td colspan="5" class="muted">Niciun aplicant. Click „+ Aplică”.</td></tr>'
-                : tripApps
+              filteredApps.length === 0
+                ? '<tr><td colspan="5" class="muted">Niciun aplicant în acest filtru.</td></tr>'
+                : filteredApps
                     .map((a) => {
                       const cust = getCustomer(a.customerId);
                       const pax = Number(a.pax || 1);
@@ -499,6 +512,7 @@ function renderMasterTripCenter(trip) {
             <select id="posting-status-select" class="inline-select" aria-label="Status anunț">
               ${POSTING_STATUSES.map((st) => `<option value="${st}" ${(trip.postingStatus || 'Publicat') === st ? 'selected' : ''}>${st}</option>`).join('')}
             </select>
+            <button type="button" class="btn btn-secondary btn-sm" id="copy-social-post-btn">${icon('chat')} Postare Social</button>
             <a href="/?apply=${encodeURIComponent(trip.id)}" class="btn btn-secondary btn-sm">Deschide pagina →</a>
           </div>
         </div>
@@ -583,6 +597,7 @@ function renderMasterTripCenter(trip) {
         <div class="master-header" style="margin-bottom:12px">
           <h2 style="margin:0;font-size:1rem">Costuri &amp; Scadențe Furnizori</h2>
           <div class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="export-billing-btn">${icon('download')} Export Facturare (.csv)</button>
             <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează costuri</button>
             <button type="button" class="btn btn-primary btn-sm" id="add-deadline-btn">+ Scadență furnizor</button>
           </div>
@@ -826,6 +841,13 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  const filterBtn = e.target.closest('[data-app-filter]');
+  if (filterBtn) {
+    applicantFilter = filterBtn.dataset.appFilter;
+    renderTripsView();
+    return;
+  }
+
   const btn = e.target.closest('button');
   if (!btn) return;
 
@@ -858,6 +880,34 @@ document.addEventListener('click', async (e) => {
     } catch {
       showToast(url);
     }
+  } else if (btn.id === 'copy-social-post-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const text = buildSocialPostText(trip, state.applications, window.location.origin);
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Postare Social (WhatsApp/Instagram) copiată.');
+    } catch {
+      showToast('Nu s-a putut copia automat.');
+    }
+  } else if (btn.id === 'export-billing-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const tripApps = state.applications.filter((a) => a.tripId === trip.id);
+    const rows = buildBillingExportRows(trip, tripApps, state.customers);
+    if (rows.length === 0) return showToast('Niciun aplicant în etapă facturabilă.');
+    const csv = buildCsv(
+      ['client', 'serviciu_sejur', 'pax', 'pret_pax', 'total', 'avans_30_proc', 'incasat', 'rest_plata', 'moneda', 'etapa', 'nota_contabila'],
+      rows
+    );
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `facturare-${trip.id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Tabel facturare (.csv) exportat.');
   } else if (btn.id === 'new-task-btn') {
     openTaskModal();
   } else if (btn.id === 'parse-email-btn') {

@@ -283,3 +283,52 @@ export function buildGeneratedDocumentText(kind, trip, tripApplications = [], cu
     `NEINCLUS: ${pub.excludedText}`,
   ].join('\n');
 }
+
+/**
+ * Generează rânduri pregătitoare pentru facturare (ex. import în SmartBill / Saga),
+ * marcând explicit că tratamentul TVA / e-Factura necesită validare contabilă.
+ */
+export function buildBillingExportRows(trip, tripApplications = [], customers = []) {
+  const custMap = new Map(customers.map((c) => [c.id, c.name]));
+  const billable = tripApplications.filter((a) =>
+    ['Ofertă trimisă', 'Avans achitat', 'Confirmat'].includes(a.stage)
+  );
+
+  return billable.map((a) => {
+    const pax = Number(a.pax || 1);
+    const unitPrice = Number(trip.pricePerPax || 0);
+    const total = pax * unitPrice;
+    const depositAmount = Math.round(total * 0.3);
+    const paid = a.depositPaid ? depositAmount : a.stage === 'Confirmat' ? total : 0;
+    const remaining = Math.max(0, total - paid);
+
+    return {
+      client: custMap.get(a.customerId) || 'Client',
+      serviciu_sejur: `${trip.title} (${trip.dates || ''})`.trim(),
+      pax,
+      pret_pax: unitPrice,
+      total,
+      avans_30_proc: depositAmount,
+      incasat: paid,
+      rest_plata: remaining,
+      moneda: trip.currency || 'EUR',
+      etapa: a.stage,
+      nota_contabila: '[DE CONFIRMAT REGIM TVA / MARJA CU CONTABILUL]',
+    };
+  });
+}
+
+/**
+ * Generează text scurt de promovare pentru WhatsApp / Instagram cu link direct de aplicare.
+ */
+export function buildSocialPostText(trip, tripApplications = [], originUrl = 'http://127.0.0.1:4173') {
+  const pub = buildPublicTripPostingView(trip, tripApplications);
+  const link = `${originUrl.replace(/\/$/, '')}/?apply=${encodeURIComponent(trip.id)}`;
+  return [
+    `${pub.title} — ${pub.destination}`,
+    `Perioadă: ${pub.dates} · ${pub.spotsRemaining} locuri libere`,
+    `${pub.publicSummary}`,
+    `Tarif orientativ: ${pub.pricePerPax} ${pub.currency}/pers. [DE CONFIRMAT]`,
+    `Înscriere rapidă: ${link}`,
+  ].join('\n');
+}
