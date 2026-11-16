@@ -530,6 +530,7 @@ function renderMasterTripCenter(trip) {
           <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.confirmedPax}/${trip.maxPax} pax</p>
         </div>
         <div class="header-actions no-print">
+          <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">Link aplicare</button>
           <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">Editează</button>
           <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">+ Aplică</button>
         </div>
@@ -710,6 +711,14 @@ document.addEventListener('click', async (e) => {
     if (trip) openTripModal(trip);
   } else if (btn.id === 'apply-to-trip-btn') {
     openApplyModal();
+  } else if (btn.id === 'copy-apply-link-btn') {
+    const url = `${window.location.origin}/?apply=${encodeURIComponent(state.selectedTripId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link de aplicare copiat.');
+    } catch {
+      showToast(url);
+    }
   } else if (btn.id === 'new-task-btn') {
     openTaskModal();
   } else if (btn.id === 'rail-advance-btn') {
@@ -1495,6 +1504,7 @@ document.getElementById('link-excel-btn').addEventListener('click', async () => 
     });
     await writeLinkedExcelFile();
     document.getElementById('sync-excel-btn').disabled = false;
+    document.getElementById('pull-excel-btn').disabled = false;
     showToast('Fișier Excel (.csv) legat și sincronizat.');
   } catch {
     showToast('Legare anulată.');
@@ -1537,6 +1547,65 @@ document.getElementById('restore-json-input').addEventListener('change', async (
   }
 });
 
+document.getElementById('pull-excel-btn').addEventListener('click', async () => {
+  if (!linkedExcelHandle) return;
+  try {
+    const file = await linkedExcelHandle.getFile();
+    const { rows } = parseCsvText(await file.text());
+    let updated = 0;
+    let added = 0;
+
+    for (const r of rows) {
+      const clientName = (r.client || '').trim();
+      const tripTitle = (r.sejur || '').trim();
+      if (!clientName) continue;
+
+      const trip = state.trips.find((t) => t.title.toLowerCase() === tripTitle.toLowerCase()) || state.trips[0];
+      if (!trip) continue;
+
+      let cust = state.customers.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
+      if (!cust) {
+        cust = { id: uid('cust'), name: clientName, channel: 'Excel Sync', note: '' };
+        state.customers.unshift(cust);
+      }
+
+      const existingApp = state.applications.find((a) => a.tripId === trip.id && a.customerId === cust.id);
+      if (existingApp) {
+        if (r.etapa && APPLICATION_STAGES.includes(r.etapa)) existingApp.stage = r.etapa;
+        if (r.tip_camera && ROOM_TYPES.includes(r.tip_camera)) existingApp.roomType = r.tip_camera;
+        if (r.camera) existingApp.roomCode = r.camera;
+        updated += 1;
+      } else {
+        const pax = Math.max(1, Number(r.pax || 1));
+        const budgetPerPax = Number(r.buget_pax || trip.pricePerPax || 0);
+        const qual = autoQualifyApplication(trip, { pax, budgetPerPax }, 0);
+        state.applications.unshift({
+          id: uid('app'),
+          tripId: trip.id,
+          customerId: cust.id,
+          pax,
+          budgetPerPax,
+          roomType: ROOM_TYPES.includes(r.tip_camera) ? r.tip_camera : 'Double',
+          roomCode: r.camera || 'Neasignat',
+          stage: APPLICATION_STAGES.includes(r.etapa) ? r.etapa : qual.suggestedStage,
+          qualificationStatus: qual.status,
+          qualificationReasons: qual.reasons,
+          appliedAt: new Date().toISOString().slice(0, 10),
+          notes: ['Sincronizat din Excel (.csv)'],
+        });
+        added += 1;
+      }
+    }
+
+    saveState();
+    renderAll();
+    document.getElementById('excel-sync-status').textContent = `Citit din Excel: +${added} noi, ${updated} actualizate`;
+    showToast(`Sincronizat din Excel (+${added}, ${updated} actualizate).`);
+  } catch {
+    showToast('Eroare la citirea fișierului Excel.');
+  }
+});
+
 document.getElementById('reset-demo-btn').addEventListener('click', () => {
   state = createSeedState();
   saveState();
@@ -1544,4 +1613,81 @@ document.getElementById('reset-demo-btn').addEventListener('click', () => {
   showToast('Date demo Garlic Trips resetate.');
 });
 
-renderAll();
+function renderPublicApplyPage(tripId) {
+  const trip = state.trips.find((t) => t.id === tripId) || state.trips[0];
+  if (!trip) return renderAll();
+  const m = computeMasterTripMetrics(trip, state.applications);
+
+  document.body.innerHTML = `
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand"><span class="brand-dot"></span><span>GarlicOS · Înscriere Sejur</span></div>
+      </div>
+      <div class="topbar-right">
+        <a href="/" class="btn btn-secondary btn-sm">Înapoi la Workspace</a>
+      </div>
+    </header>
+    <main class="page-container" style="max-width:560px">
+      <div class="card">
+        <h1 style="margin:0 0 4px;font-size:1.35rem">${esc(trip.title)}</h1>
+        <p class="muted small" style="margin-bottom:14px">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.spotsRemaining} locuri disponibile</p>
+        <div class="metric-strip" style="margin-bottom:16px">
+          <div class="metric-item"><span>Tarif orientativ</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}/pax</strong></div>
+        </div>
+        <form id="public-apply-form" class="form-stack">
+          <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
+          <div class="two-col-tight">
+            <div class="field"><label for="pa-pax">Nr. persoane</label><input id="pa-pax" name="pax" type="number" min="1" class="input" value="2"></div>
+            <div class="field"><label for="pa-budget">Buget / pax (${esc(trip.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(trip.pricePerPax)}"></div>
+          </div>
+          <div class="field"><label for="pa-room">Preferință cameră</label><select id="pa-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
+          <button type="submit" class="btn btn-accent">Trimite aplicarea</button>
+        </form>
+        <div id="public-apply-result" style="margin-top:14px"></div>
+      </div>
+    </main>
+  `;
+
+  document.getElementById('public-apply-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!data.name?.trim()) return;
+    const cust = { id: uid('cust'), name: data.name.trim(), channel: 'Link aplicare', note: 'Aplicat online' };
+    state.customers.unshift(cust);
+    const qual = autoQualifyApplication(
+      trip,
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
+      m.confirmedPax
+    );
+    state.applications.unshift({
+      id: uid('app'),
+      tripId: trip.id,
+      customerId: cust.id,
+      pax: Number(data.pax || 1),
+      budgetPerPax: Number(data.budgetPerPax || 0),
+      roomType: data.roomType || 'Double',
+      roomCode: 'Neasignat',
+      stage: qual.suggestedStage,
+      qualificationStatus: qual.status,
+      qualificationReasons: qual.reasons,
+      appliedAt: new Date().toISOString().slice(0, 10),
+      notes: [`Azi · Aplicat via link (${qual.status})`],
+    });
+    state.selectedTripId = trip.id;
+    saveState();
+    document.getElementById('public-apply-result').innerHTML = `
+      <div class="feedback-msg is-ok">
+        Aplicare înregistrată! Status: <strong>${esc(qual.status)}</strong>.
+        <a href="/">Deschide în Workspace →</a>
+      </div>
+    `;
+    e.target.reset();
+  });
+}
+
+const applyTripParam = new URLSearchParams(window.location.search).get('apply');
+if (applyTripParam) {
+  renderPublicApplyPage(applyTripParam);
+} else {
+  renderAll();
+}
