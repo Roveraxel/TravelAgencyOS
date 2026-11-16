@@ -1,0 +1,14 @@
+{
+  "name": "travel-agency-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TravelAgencyOS — spațiu de lucru operațional pentru agenții de turism independente din România (prototip local MVP).",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
