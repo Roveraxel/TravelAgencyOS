@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText } from '../public/trip-utils.js';
 import { renderMessageTemplate, parseInboundEmailText } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
@@ -263,4 +263,28 @@ test('Server /api/public/trips strips internal costs and /api/public/apply auto-
   });
   assert.equal(applyRes.status, 200);
   assert.equal(applyRes.json().qualificationStatus, 'Calificat automat');
+});
+
+test('buildGeneratedDocumentText separates Client Itinerary from Supplier Rooming Borderou', () => {
+  const trip = {
+    id: 't1',
+    title: 'Svalbard',
+    destination: 'Longyearbyen',
+    dates: '2027-03-14',
+    costPerPax: 1400,
+    pricePerPax: 1850,
+    currency: 'EUR',
+    stays: [{ id: 's1', name: 'Basecamp Hotel', nights: 7, doubleRooms: 4, singleRooms: 2 }],
+  };
+  const customers = [{ id: 'c1', name: 'Radu Demo' }];
+  const apps = [{ tripId: 't1', customerId: 'c1', pax: 2, roomType: 'Double', roomCode: 'Cam. 1', stage: 'Confirmat' }];
+
+  const clientDoc = buildGeneratedDocumentText('client_itinerary', trip, apps, customers);
+  assert.ok(clientDoc.includes('Basecamp Hotel'));
+  assert.ok(clientDoc.includes('1850 EUR'));
+  assert.equal(clientDoc.includes('1400'), false);
+
+  const supplierDoc = buildGeneratedDocumentText('supplier_rooming', trip, apps, customers);
+  assert.ok(supplierDoc.includes('Cam. 1 (Double, 2 pax): Radu Demo'));
+  assert.equal(supplierDoc.includes('1850'), false);
 });

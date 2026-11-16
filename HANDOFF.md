@@ -13,14 +13,15 @@
   - **Trip Posting & Public Agency Board (`/?board=1`, `/?apply=<tripId>`)** (`Anunț Public` tab, `buildPublicTripPostingView`, `autoQualifyApplication`): manage `Draft` / `Publicat` / `Locuri epuizate` / `Arhivat`, edit public summary & inclusions, configure custom Da/Nu qualification criteria per trip, and publish on a clean public trip board without exposing internal costs or margins.
   - **Supplier Cut-Offs & Payment Tranches** (`Costuri & Furnizori` tab): track `Rooming cut-off`, `Avans furnizor`, and `Sold furnizor` deadlines with overdue/soon badges, plus 1-click `Avans 30%` toggle per applicant.
   - **Multi-Accommodation Rooming & Inventory** (`Camere` tab, `analyzeRooming`, `buildHotelRoomingRows`): add multiple stays per Master Trip (each with `Double/Twin` & `Single` room counts), copy rooming from Stay 1, detect unpaired `Twin (Partajabil)` (`Caută coleg(ă)`) or over-allocated inventory, and export hotel-ready Rooming CSV per stay stripped of internal pricing.
-  - **Document Story & Versioning** (`Documente` tab): track `v1 → v2` versions, `Client` vs `Furnizor` audience, and sent history log.
+  - **Document Story, Versioning & Auto-Assembly** (`Documente` tab, `buildGeneratedDocumentText`): auto-generate **Client Itinerary (`Itinerariu & Cazări`)** and **Supplier Rooming Sheet (`Borderou Camere`)** from live Master Trip stays & rooms, open directly in PDF print view (`Deschide PDF`), track `v1 → v2` versions, `Client` vs `Furnizor` audience, and sent history log.
   - **Offer Master & Print/PDF** tab with optional Gemini AI draft, WhatsApp copy, and `@media print`.
   - **Messaging Templates** (`public/template-utils.js`): 5 Romanian WhatsApp/Email templates (`Confirmare aplicare`, `Ofertă & Avans`, `Propunere coleg Twin`, `Reminder plată`, `Checklist pre-plecare`) with auto-interpolation, clipboard copy, and `mailto:` launch.
   - **Two-Way Excel (.csv) Local Sync** (`CSV` tab): bind a local `.csv` file via File System Access API (`showSaveFilePicker`) to both write updates (`Scrie în Excel`) and pull edits made in Excel (`Citește din Excel`).
   - **Server-Side Public Trip API & Local Persistence (`server.mjs`)**: `GET /api/public/trips` (strictly strips `costPerPax`, `fixedCost`, and profit on the server), `POST /api/public/apply` (validates & auto-qualifies applicant server-side), and `GET/PUT /api/state` (`.local-store.json`, gitignored).
   - **Email-to-Deadline / Task Parser (`+ Din Email`)** (`parseInboundEmailText` in `public/template-utils.js`): extracts dates (`DD.MM.YYYY` / `YYYY-MM-DD`) and amounts (`EUR`/`RON`/`USD`) from pasted supplier emails and converts them into a Supplier Deadline or Task in 1 click, plus automatic timeline logging when copying WhatsApp templates.
+  - **GDPR Export & Deletion** (`Clienți` tab): 1-click JSON data export (`Export JSON`) and cascade deletion (`Șterge`) per customer.
   - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (14/14 passing offline).
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (15/15 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

@@ -15,6 +15,7 @@ import {
   buildPublicTripPostingView,
   analyzeRooming,
   buildHotelRoomingRows,
+  buildGeneratedDocumentText,
 } from '/trip-utils.js';
 import { MESSAGE_TEMPLATES, renderMessageTemplate, parseInboundEmailText } from '/template-utils.js';
 import { icon, channelIcon } from '/icons.js';
@@ -545,7 +546,11 @@ function renderMasterTripCenter(trip) {
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
           <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
-          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="gen-client-doc-btn">Generează Itinerariu (Client)</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="gen-supplier-doc-btn">Generează Borderou (Furnizor)</button>
+            <button type="button" class="btn btn-primary btn-sm" id="add-doc-btn">+ Document</button>
+          </div>
         </div>
         ${
           tripDocs.length === 0
@@ -561,6 +566,7 @@ function renderMasterTripCenter(trip) {
                     <div class="muted small">${esc(d.kind)} · ${d.sentLog && d.sentLog[0] ? esc(d.sentLog[0]) : 'Netrimis'}</div>
                   </div>
                   <div class="header-actions">
+                    ${d.content ? `<button type="button" class="btn btn-secondary btn-sm" data-open-doc="${esc(d.id)}">Deschide PDF</button>` : ''}
                     <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
                     <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
@@ -774,6 +780,12 @@ function renderCustomersView() {
         <td><span style="display:inline-flex;align-items:center;gap:5px">${channelIcon(c.channel)} ${esc(c.channel || '-')}</span></td>
         <td>${count}</td>
         <td class="muted small">${esc(c.note || '-')}</td>
+        <td>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-export-customer="${esc(c.id)}">Export JSON</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-delete-customer="${esc(c.id)}">Șterge</button>
+          </div>
+        </td>
       </tr>`;
     })
     .join('');
@@ -922,6 +934,62 @@ document.addEventListener('click', async (e) => {
     }
   } else if (btn.id === 'add-doc-btn') {
     openDocModal();
+  } else if (btn.id === 'gen-client-doc-btn' || btn.id === 'gen-supplier-doc-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const isSupplier = btn.id === 'gen-supplier-doc-btn';
+    const tripApps = state.applications.filter((a) => a.tripId === trip.id);
+    const content = buildGeneratedDocumentText(
+      isSupplier ? 'supplier_rooming' : 'client_itinerary',
+      trip,
+      tripApps,
+      state.customers
+    );
+    state.documents = state.documents || [];
+    state.documents.unshift({
+      id: uid('doc'),
+      tripId: trip.id,
+      title: isSupplier ? `Borderou Camere — ${trip.title}.pdf` : `Itinerariu & Cazări — ${trip.title}.pdf`,
+      kind: isSupplier ? 'Rooming' : 'Itinerariu',
+      audience: isSupplier ? 'Furnizor' : 'Client',
+      version: 1,
+      content,
+      sentLog: [],
+      updatedAt: new Date().toISOString().slice(0, 10),
+    });
+    state.offerDrafts[trip.id] = content;
+    saveState();
+    renderTripsView();
+    showToast(isSupplier ? 'Borderou Furnizor generat.' : 'Itinerariu Client generat.');
+  } else if (btn.dataset.openDoc) {
+    const doc = (state.documents || []).find((d) => d.id === btn.dataset.openDoc);
+    if (doc && doc.content) {
+      state.offerDrafts[doc.tripId] = doc.content;
+      state.activeCenterTab = 'offer';
+      saveState();
+      renderTripsView();
+    }
+  } else if (btn.dataset.exportCustomer) {
+    const cust = state.customers.find((c) => c.id === btn.dataset.exportCustomer);
+    if (!cust) return;
+    const apps = state.applications.filter((a) => a.customerId === cust.id);
+    const blob = new Blob([JSON.stringify({ customer: cust, applications: apps }, null, 2)], {
+      type: 'application/json;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gdpr-export-${cust.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Date client exportate (GDPR).');
+  } else if (btn.dataset.deleteCustomer) {
+    const id = btn.dataset.deleteCustomer;
+    state.customers = state.customers.filter((c) => c.id !== id);
+    state.applications = state.applications.filter((a) => a.customerId !== id);
+    saveState();
+    renderAll();
+    showToast('Client și aplicații șterse (GDPR).');
   } else if (btn.id === 'export-rooming-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (!trip) return;
@@ -1819,10 +1887,29 @@ function renderPublicApplyPage(tripId) {
 }
 
 const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('board')) {
-  renderPublicBoardPage();
-} else if (urlParams.get('apply')) {
-  renderPublicApplyPage(urlParams.get('apply'));
-} else {
-  renderAll();
+async function initApp() {
+  try {
+    const res = await fetch('/api/state');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.state && Array.isArray(data.state.trips) && data.state.trips.length > 0) {
+        state = { ...state, ...data.state };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } else {
+        saveState();
+      }
+    }
+  } catch {
+    // Offline / localStorage fallback
+  }
+
+  if (urlParams.get('board')) {
+    renderPublicBoardPage();
+  } else if (urlParams.get('apply')) {
+    renderPublicApplyPage(urlParams.get('apply'));
+  } else {
+    renderAll();
+  }
 }
+
+initApp();

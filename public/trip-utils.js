@@ -231,3 +231,55 @@ export function buildHotelRoomingRows(tripApplications = [], customers = [], sta
       observatii: r.alert || 'OK',
     }));
 }
+
+/**
+ * Asamblează automat documentul text pentru Client (Itinerariu & Cazări, fără costuri interne)
+ * sau pentru Furnizor (Borderou Camere pe cazări, fără tarife de vânzare către client).
+ */
+export function buildGeneratedDocumentText(kind, trip, tripApplications = [], customers = []) {
+  const stays = Array.isArray(trip.stays) && trip.stays.length > 0 ? trip.stays : [];
+
+  if (kind === 'supplier_rooming') {
+    const stayBlocks =
+      stays.length === 0
+        ? ['Fără cazări definite încă.']
+        : stays.map((s) => {
+            const rows = buildHotelRoomingRows(tripApplications, customers, s);
+            const lines =
+              rows.length === 0
+                ? ['  - Nicio cameră alocată încă']
+                : rows.map((r) => `  - ${r.camera} (${r.tip_camera}, ${r.pax} pax): ${r.oaspeti}`);
+            return [`${s.name} (${s.nights} nopți) [Alocare: ${s.doubleRooms} DBL, ${s.singleRooms} SGL]`, ...lines].join('\n');
+          });
+
+    return [
+      `BORDEROU CAMERE FURNIZOR — ${trip.title}`,
+      `Destinație: ${trip.destination}`,
+      `Perioadă: ${trip.dates}`,
+      ``,
+      ...stayBlocks,
+    ].join('\n\n');
+  }
+
+  const pub = buildPublicTripPostingView(trip, tripApplications);
+  const stayLines =
+    stays.length === 0
+      ? ['  - Cazare conform programului [DE CONFIRMAT]']
+      : stays.map((s, idx) => `  ${idx + 1}. ${s.name} — ${s.nights} nopți`);
+
+  return [
+    `FIȘĂ ITINERARIU & CAZĂRI (CLIENT) — ${pub.title}`,
+    `Destinație: ${pub.destination}`,
+    `Perioadă: ${pub.dates}`,
+    `Tarif pachet: ${pub.pricePerPax} ${pub.currency} / persoană [DE CONFIRMAT]`,
+    ``,
+    `REZUMAT PROGRAM:`,
+    pub.publicSummary || '-',
+    ``,
+    `CAZĂRI ÎN CIRCUIT:`,
+    ...stayLines,
+    ``,
+    `INCLUS ÎN TARIF: ${pub.includedText}`,
+    `NEINCLUS: ${pub.excludedText}`,
+  ].join('\n');
+}
