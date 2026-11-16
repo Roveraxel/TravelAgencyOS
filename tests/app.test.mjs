@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
 import { computeMasterTripMetrics, autoQualifyApplication, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
+import { renderMessageTemplate } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
 test('parseCsvText handles UTF-8 BOM, semicolons, and quoted commas', () => {
@@ -182,4 +183,17 @@ test('analyzeRooming tracks per-stay Double/Single inventory limits', () => {
   assert.equal(res.usedSingle, 1);
   assert.equal(res.inventoryWarnings.length, 1);
   assert.ok(res.inventoryWarnings[0].includes('Single'));
+});
+
+test('renderMessageTemplate interpolates trip, applicant, and customer fields', () => {
+  const out = renderMessageTemplate('offer-deposit', {
+    trip: { title: 'Svalbard', dates: '14-21 mar', pricePerPax: 1850, currency: 'EUR' },
+    app: { pax: 2 },
+    customer: { name: 'Radu Demo' },
+    metrics: { spotsRemaining: 6 },
+  });
+  assert.ok(out.subject.includes('Svalbard'));
+  assert.ok(out.body.includes('Radu Demo'));
+  assert.ok(out.body.includes('3700 EUR'));
+  assert.ok(out.body.includes('6 locuri'));
 });

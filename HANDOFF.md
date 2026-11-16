@@ -14,8 +14,10 @@
   - **Multi-Accommodation Rooming & Inventory** (`Camere` tab, `analyzeRooming`, `buildHotelRoomingRows`): add multiple stays per Master Trip (each with `Double/Twin` & `Single` room counts), copy rooming from Stay 1, detect unpaired `Twin (Partajabil)` (`Caută coleg(ă)`) or over-allocated inventory, and export hotel-ready Rooming CSV per stay stripped of internal pricing.
   - **Document Story & Versioning** (`Documente` tab): track `v1 → v2` versions, `Client` vs `Furnizor` audience, and sent history log.
   - **Offer Master & Print/PDF** tab with optional Gemini AI draft, WhatsApp copy, and `@media print`.
+  - **Messaging Templates** (`public/template-utils.js`): 5 Romanian WhatsApp/Email templates (`Confirmare aplicare`, `Ofertă & Avans`, `Propunere coleg Twin`, `Reminder plată`, `Checklist pre-plecare`) with auto-interpolation, clipboard copy, and `mailto:` launch.
+  - **Excel (.csv) Live-Link Sync** (`CSV` tab): bind a local `.csv` file via File System Access API (`showSaveFilePicker`) for 1-click sync (with download fallback in unsupported browsers).
   - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (10/10 passing offline).
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (11/11 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

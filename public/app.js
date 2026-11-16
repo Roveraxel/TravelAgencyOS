@@ -13,6 +13,7 @@ import {
   analyzeRooming,
   buildHotelRoomingRows,
 } from '/trip-utils.js';
+import { MESSAGE_TEMPLATES, renderMessageTemplate } from '/template-utils.js';
 
 const STORAGE_KEY = 'travelagencyos_garlic_v2';
 
@@ -154,6 +155,8 @@ function createSeedState() {
 let state = loadState();
 let activeModal = null;
 let stagedCsvRows = [];
+let linkedExcelHandle = null;
+let selectedTemplateId = MESSAGE_TEMPLATES[0].id;
 
 function loadState() {
   try {
@@ -563,6 +566,8 @@ function renderApplicantRightRail(trip) {
   const total = pax * Number(trip.pricePerPax || 0);
   const cost = pax * Number(trip.costPerPax || 0);
   const profit = total - cost;
+  const metrics = computeMasterTripMetrics(trip, state.applications);
+  const rendered = renderMessageTemplate(selectedTemplateId, { trip, app, customer: cust, metrics });
 
   rail.innerHTML = `
     <div class="rail-header" style="padding:0 0 10px">
@@ -579,8 +584,18 @@ function renderApplicantRightRail(trip) {
     </div>
     <div class="form-actions">
       <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">→ Etapă</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">WhatsApp</button>
     </div>
+
+    <div class="rail-header" style="padding:10px 0 6px"><span>Șablon mesaj</span></div>
+    <select id="rail-tpl-select" class="input" aria-label="Alege șablon mesaj">
+      ${MESSAGE_TEMPLATES.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplateId ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+    </select>
+    <textarea id="rail-tpl-body" rows="5" class="input" style="font-size:0.8rem">${esc(rendered.body)}</textarea>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">Copiază WhatsApp</button>
+      <a class="btn btn-secondary btn-sm" href="mailto:?subject=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}">Email</a>
+    </div>
+
     <div class="rail-header" style="padding:10px 0 6px"><span>Note</span></div>
     <form id="rail-note-form" class="form-actions">
       <input id="rail-note-input" class="input" placeholder="Notă rapidă..." aria-label="Notă rapidă">
@@ -712,7 +727,9 @@ document.addEventListener('click', async (e) => {
   } else if (btn.id === 'rail-wa-btn' || btn.id === 'trip-copy-wa-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (!trip) return;
+    const railBody = document.getElementById('rail-tpl-body')?.value;
     const text =
+      (btn.id === 'rail-wa-btn' && railBody) ||
       state.offerDrafts[trip.id] ||
       `Bună ziua! Vă trimit detaliile pentru ${trip.title} (${trip.dates}): ${trip.pricePerPax} ${trip.currency}/persoană [DE CONFIRMAT].`;
     try {
@@ -817,6 +834,9 @@ document.addEventListener('change', (e) => {
       renderTripsView();
       showToast(`Status: ${app.stage}`);
     }
+  } else if (e.target.id === 'rail-tpl-select') {
+    selectedTemplateId = e.target.value;
+    renderTripsView();
   } else if (e.target.matches('select[data-room-type]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.roomType);
     if (app) {
@@ -1434,6 +1454,60 @@ document.getElementById('csv-commit-btn').addEventListener('click', () => {
   renderAll();
   showToast(`${added} aplicanți importați.`);
   document.getElementById('csv-commit-btn').disabled = true;
+});
+
+function buildApplicationsCsvString() {
+  const headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa', 'tip_camera', 'camera'];
+  const rows = state.applications.map((a) => ({
+    sejur: state.trips.find((t) => t.id === a.tripId)?.title || '',
+    client: getCustomer(a.customerId).name,
+    pax: a.pax,
+    buget_pax: a.budgetPerPax,
+    calificare: a.qualificationStatus,
+    etapa: a.stage,
+    tip_camera: a.roomType || 'Double',
+    camera: a.roomCode || 'Neasignat',
+  }));
+  return buildCsv(headers, rows);
+}
+
+async function writeLinkedExcelFile() {
+  if (!linkedExcelHandle) return;
+  const writable = await linkedExcelHandle.createWritable();
+  await writable.write(buildApplicationsCsvString());
+  await writable.close();
+  const statusEl = document.getElementById('excel-sync-status');
+  if (statusEl) {
+    statusEl.textContent = `Sincronizat la ${new Date().toLocaleTimeString('ro-RO')}`;
+  }
+}
+
+document.getElementById('link-excel-btn').addEventListener('click', async () => {
+  if (typeof window.showSaveFilePicker !== 'function') {
+    exportDatasetCsv('applications');
+    showToast('Browserul nu suportă File System Access; s-a descărcat CSV.');
+    return;
+  }
+  try {
+    linkedExcelHandle = await window.showSaveFilePicker({
+      suggestedName: 'garlic-trips-live.csv',
+      types: [{ description: 'Excel CSV', accept: { 'text/csv': ['.csv'] } }],
+    });
+    await writeLinkedExcelFile();
+    document.getElementById('sync-excel-btn').disabled = false;
+    showToast('Fișier Excel (.csv) legat și sincronizat.');
+  } catch {
+    showToast('Legare anulată.');
+  }
+});
+
+document.getElementById('sync-excel-btn').addEventListener('click', async () => {
+  try {
+    await writeLinkedExcelFile();
+    showToast('Excel (.csv) actualizat.');
+  } catch {
+    showToast('Eroare la scrierea fișierului Excel.');
+  }
 });
 
 document.getElementById('backup-json-btn').addEventListener('click', () => {

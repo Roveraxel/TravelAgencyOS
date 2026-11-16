@@ -98,6 +98,12 @@
         </div>
         <hr class="divider">
         <div class="form-actions">
+          <button type="button" id="link-excel-btn" class="btn btn-primary btn-sm">Leagă fișier Excel (.csv)</button>
+          <button type="button" id="sync-excel-btn" class="btn btn-secondary btn-sm" disabled>Sincronizează acum</button>
+          <span id="excel-sync-status" class="muted small">Nelegat</span>
+        </div>
+        <hr class="divider">
+        <div class="form-actions">
           <button type="button" id="backup-json-btn" class="btn btn-secondary btn-sm">Descarcă backup JSON</button>
           <label class="btn btn-ghost btn-sm" for="restore-json-input">Restaurează din JSON</label>
           <input id="restore-json-input" type="file" accept=".json,application/json" hidden>
