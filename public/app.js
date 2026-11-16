@@ -17,6 +17,7 @@ import {
   buildHotelRoomingRows,
 } from '/trip-utils.js';
 import { MESSAGE_TEMPLATES, renderMessageTemplate } from '/template-utils.js';
+import { icon, channelIcon } from '/icons.js';
 
 const STORAGE_KEY = 'travelagencyos_garlic_v2';
 
@@ -361,7 +362,7 @@ function renderMasterTripCenter(trip) {
                       const selectedCls = a.id === state.selectedAppId ? 'is-selected' : '';
                       return `
                       <tr class="${selectedCls}" data-select-app="${esc(a.id)}">
-                        <td><strong>${esc(cust.name)}</strong><div class="muted small">${esc(cust.channel)}</div></td>
+                        <td><strong>${esc(cust.name)}</strong><div class="muted small" style="display:flex;align-items:center;gap:4px">${channelIcon(cust.channel)} ${esc(cust.channel)}</div></td>
                         <td>${qualDotHtml(a.qualificationStatus, a.qualificationReasons)}</td>
                         <td>${pax}</td>
                         <td><strong>${fmtMoney(total, trip.currency)}</strong></td>
@@ -646,9 +647,9 @@ function renderMasterTripCenter(trip) {
           <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · <span class="badge">${esc(trip.postingStatus || 'Publicat')}</span></p>
         </div>
         <div class="header-actions no-print">
-          <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">Link aplicare</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">Editează</button>
-          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">+ Aplică</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">${icon('link')} Link</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">${icon('edit')} Editează</button>
+          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">${icon('userPlus')} Aplică</button>
         </div>
       </div>
       <div class="metric-strip">
@@ -659,12 +660,12 @@ function renderMasterTripCenter(trip) {
     </div>
 
     <div class="sub-tabs no-print">
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">Camere</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">Anunț Public</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri &amp; Furnizori</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă &amp; PDF</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">${icon('users')} Aplicanți (${tripApps.length})</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">${icon('bed')} Camere</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">${icon('globe')} Anunț Public</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">${icon('file')} Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">${icon('coins')} Costuri &amp; Furnizori</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">${icon('sparkles')} Ofertă &amp; PDF</button>
     </div>
 
     ${tabBodyHtml}
@@ -694,14 +695,14 @@ function renderApplicantRightRail(trip) {
     </div>
     <div>
       <strong style="font-size:1.02rem">${esc(cust.name)}</strong>
-      <div class="muted small">${esc(cust.channel)} · ${pax} pax · ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
+      <div class="muted small" style="display:flex;align-items:center;gap:5px">${channelIcon(cust.channel)} ${esc(cust.channel)} · ${pax} pax · ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
     </div>
     <div class="metric-strip" style="gap:12px">
       <div class="metric-item"><span>Total</span><strong>${fmtMoney(total, trip.currency)}</strong></div>
       <div class="metric-item is-profit" style="margin-left:0"><span>Profit</span><strong>+${fmtMoney(profit, trip.currency)}</strong></div>
     </div>
     <div class="form-actions">
-      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">→ Etapă</button>
+      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">${icon('arrowRight')} Etapă</button>
       <label class="btn btn-secondary btn-sm" style="cursor:pointer">
         <input type="checkbox" id="rail-deposit-toggle" ${app.depositPaid ? 'checked' : ''}> Avans 30%
       </label>
@@ -713,8 +714,8 @@ function renderApplicantRightRail(trip) {
     </select>
     <textarea id="rail-tpl-body" rows="5" class="input" style="font-size:0.8rem">${esc(rendered.body)}</textarea>
     <div class="form-actions">
-      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">Copiază WhatsApp</button>
-      <a class="btn btn-secondary btn-sm" href="mailto:?subject=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}">Email</a>
+      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">${icon('chat')} WhatsApp</button>
+      <a class="btn btn-secondary btn-sm" href="mailto:?subject=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}">${icon('mail')} Email</a>
     </div>
 
     <div class="rail-header" style="padding:10px 0 6px"><span>Note</span></div>
@@ -765,7 +766,7 @@ function renderCustomersView() {
       return `
       <tr>
         <td><strong>${esc(c.name)}</strong></td>
-        <td>${esc(c.channel || '-')}</td>
+        <td><span style="display:inline-flex;align-items:center;gap:5px">${channelIcon(c.channel)} ${esc(c.channel || '-')}</span></td>
         <td>${count}</td>
         <td class="muted small">${esc(c.note || '-')}</td>
       </tr>`;

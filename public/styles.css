@@ -93,6 +93,14 @@ body {
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-icon {
+  flex-shrink: 0;
+  vertical-align: -2px;
 }
 
 .top-nav-btn:hover {
@@ -281,6 +289,9 @@ body {
   font-weight: 500;
   color: var(--muted);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sub-tab-btn.is-active {
