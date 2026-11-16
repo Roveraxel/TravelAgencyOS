@@ -178,6 +178,17 @@ function qualBadgeClass(status) {
   return 'badge badge-warning';
 }
 
+function qualDotHtml(status, reasons = []) {
+  const tip = esc((reasons || []).join('; '));
+  if (status === 'Calificat automat') {
+    return `<span class="qual-dot is-ok" title="${tip}">OK</span>`;
+  }
+  if (status === 'Buget sub prag') {
+    return `<span class="qual-dot is-low" title="${tip}">Buget</span>`;
+  }
+  return `<span class="qual-dot is-warn" title="${tip}">Verifică</span>`;
+}
+
 function showToast(msg) {
   const region = document.getElementById('toast-region');
   if (!region) return;
@@ -268,17 +279,17 @@ function renderMasterTripCenter(trip) {
           <thead>
             <tr>
               <th>Client</th>
-              <th>Calificare automată</th>
+              <th>Status</th>
               <th>Pax</th>
               <th>Total</th>
               <th>Profit</th>
-              <th>Etapă ATS</th>
+              <th>Etapă</th>
             </tr>
           </thead>
           <tbody>
             ${
               tripApps.length === 0
-                ? '<tr><td colspan="6" class="muted">Niciun aplicant încă. Folosiți „+ Aplică client”.</td></tr>'
+                ? '<tr><td colspan="6" class="muted">Niciun aplicant. Click „+ Aplică”.</td></tr>'
                 : tripApps
                     .map((a) => {
                       const cust = getCustomer(a.customerId);
@@ -289,8 +300,8 @@ function renderMasterTripCenter(trip) {
                       return `
                       <tr class="${selectedCls}" data-select-app="${esc(a.id)}">
                         <td><strong>${esc(cust.name)}</strong><div class="muted small">${esc(cust.channel)}</div></td>
-                        <td><span class="${qualBadgeClass(a.qualificationStatus)}">${esc(a.qualificationStatus)}</span></td>
-                        <td>${pax} pax</td>
+                        <td>${qualDotHtml(a.qualificationStatus, a.qualificationReasons)}</td>
+                        <td>${pax}</td>
                         <td><strong>${fmtMoney(total, trip.currency)}</strong></td>
                         <td class="profit-text">+${fmtMoney(profit, trip.currency)}</td>
                         <td>
@@ -357,41 +368,26 @@ function renderMasterTripCenter(trip) {
       <div class="master-header">
         <div>
           <h1>${esc(trip.title)}</h1>
-          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.confirmedPax}/${trip.maxPax} locuri confirmate</p>
+          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.confirmedPax}/${trip.maxPax} pax</p>
         </div>
         <div class="header-actions no-print">
-          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">Editează sejur</button>
-          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">+ Aplică client (Simulare)</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">Editează</button>
+          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">+ Aplică</button>
         </div>
       </div>
-      <div class="econ-grid">
-        <div class="econ-box">
-          <div class="econ-label">Cost / pax</div>
-          <div class="econ-value">${fmtMoney(trip.costPerPax, trip.currency)}</div>
-        </div>
-        <div class="econ-box">
-          <div class="econ-label">Preț / pax</div>
-          <div class="econ-value">${fmtMoney(trip.pricePerPax, trip.currency)}</div>
-        </div>
-        <div class="econ-box">
-          <div class="econ-label">Cost total (${m.basisPax} pax)</div>
-          <div class="econ-value">${fmtMoney(m.totalCost, trip.currency)}</div>
-        </div>
-        <div class="econ-box">
-          <div class="econ-label">Încasări estimate</div>
-          <div class="econ-value">${fmtMoney(m.totalRevenue, trip.currency)}</div>
-        </div>
-        <div class="econ-box is-profit">
-          <div class="econ-label">Profit estimat</div>
-          <div class="econ-value">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)} (${m.marginPct}%)</div>
-        </div>
+      <div class="metric-strip">
+        <div class="metric-item"><span>Cost/pax</span><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div>
+        <div class="metric-item"><span>Preț/pax</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div>
+        <div class="metric-item"><span>Cost (${m.basisPax} pax)</span><strong>${fmtMoney(m.totalCost, trip.currency)}</strong></div>
+        <div class="metric-item"><span>Încasări</span><strong>${fmtMoney(m.totalRevenue, trip.currency)}</strong></div>
+        <div class="metric-item is-profit"><span>Profit</span><strong>${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)} (${m.marginPct}%)</strong></div>
       </div>
     </div>
 
     <div class="sub-tabs no-print">
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Structură costuri</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă Master &amp; Print</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă &amp; PDF</button>
     </div>
 
     ${tabBodyHtml}
@@ -414,28 +410,25 @@ function renderApplicantRightRail(trip) {
 
   rail.innerHTML = `
     <div class="rail-header" style="padding:0 0 10px">
-      <span>Aplicant selectat</span>
-      <span class="${qualBadgeClass(app.qualificationStatus)}">${esc(app.qualificationStatus)}</span>
+      <span>Aplicant</span>
+      ${qualDotHtml(app.qualificationStatus, app.qualificationReasons)}
     </div>
     <div>
       <strong style="font-size:1.02rem">${esc(cust.name)}</strong>
-      <div class="muted small">${esc(cust.channel)} · ${pax} pax · Buget ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
+      <div class="muted small">${esc(cust.channel)} · ${pax} pax · ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
     </div>
-    <div class="card" style="padding:12px;background:var(--bg)">
-      <div class="small muted">Calificare automată:</div>
-      <div class="small" style="margin-top:4px">${esc((app.qualificationReasons || []).join('; '))}</div>
-      <hr class="divider">
-      <div class="small">Total pachet: <strong>${fmtMoney(total, trip.currency)}</strong></div>
-      <div class="small muted">Cost furnizor: ${fmtMoney(cost, trip.currency)}</div>
-      <div class="small profit-text">Profit: +${fmtMoney(profit, trip.currency)}</div>
+    <div class="metric-strip" style="gap:12px">
+      <div class="metric-item"><span>Total</span><strong>${fmtMoney(total, trip.currency)}</strong></div>
+      <div class="metric-item"><span>Cost</span><strong>${fmtMoney(cost, trip.currency)}</strong></div>
+      <div class="metric-item is-profit" style="margin-left:0"><span>Profit</span><strong>+${fmtMoney(profit, trip.currency)}</strong></div>
     </div>
     <div class="form-actions">
-      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">Avansează etapa →</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">Copiază WhatsApp</button>
+      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">→ Etapă</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">WhatsApp</button>
     </div>
-    <div class="rail-header" style="padding:10px 0 6px"><span>Activitate &amp; Note</span></div>
+    <div class="rail-header" style="padding:10px 0 6px"><span>Note</span></div>
     <form id="rail-note-form" class="form-actions">
-      <input id="rail-note-input" class="input" placeholder="Adaugă notă rapidă..." aria-label="Adaugă notă rapidă">
+      <input id="rail-note-input" class="input" placeholder="Notă rapidă..." aria-label="Notă rapidă">
     </form>
     <div class="stack">
       ${(app.notes || []).map((n) => `<div class="small" style="border-bottom:1px solid var(--border);padding-bottom:6px">${esc(n)}</div>`).join('')}

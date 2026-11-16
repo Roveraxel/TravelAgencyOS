@@ -367,6 +367,73 @@ body {
   color: var(--accent);
 }
 
+.qual-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.qual-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.qual-dot.is-ok {
+  color: var(--profit-text);
+}
+
+.qual-dot.is-low {
+  color: var(--danger);
+}
+
+.qual-dot.is-warn {
+  color: var(--amber-text);
+}
+
+.metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  align-items: center;
+}
+
+.metric-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.metric-item span {
+  color: var(--muted);
+}
+
+.metric-item strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.metric-item.is-profit {
+  margin-left: auto;
+  background: var(--profit-bg);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.metric-item.is-profit span,
+.metric-item.is-profit strong {
+  color: var(--profit-text);
+}
+
 .btn {
   border: 1px solid transparent;
   border-radius: 8px;
