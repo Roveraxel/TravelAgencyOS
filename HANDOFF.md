@@ -10,14 +10,15 @@
 - **Trip-First ATS Workspace (Garlic Trips Demo)** (`public/index.html`, `public/styles.css`, `public/app.js`, `public/trip-utils.js`):
   - **Garlic Trail-inspired palette** (pine `#1B3B2B`, warm parchment `#FAF8F4`, terracotta `#C85A32`, emerald profit badges).
   - **Master Trips** as the primary object (`Svalbard Arctic Expedition`, `Maramureș & Bucovina Trail`, `Vietnam & Cambodgia`) with live **Cost / Revenue / Profit** calculation (`computeMasterTripMetrics`).
-  - **Customer Apply Link (`/?apply=<tripId>`) + Auto-Qualification** (`autoQualifyApplication`): copy a public-style apply link per Master Trip (`Link aplicare`) or use `+ Aplică`; applicants are automatically qualified (`Calificat automat`, `Necesită verificare`, `Buget sub prag`) into the trip's ATS pipeline without exposing internal cost/profit numbers.
+  - **Trip Posting & Public Agency Board (`/?board=1`, `/?apply=<tripId>`)** (`Anunț Public` tab, `buildPublicTripPostingView`, `autoQualifyApplication`): manage `Draft` / `Publicat` / `Locuri epuizate` / `Arhivat`, edit public summary & inclusions, configure custom Da/Nu qualification criteria per trip, and publish on a clean public trip board without exposing internal costs or margins.
+  - **Supplier Cut-Offs & Payment Tranches** (`Costuri & Furnizori` tab): track `Rooming cut-off`, `Avans furnizor`, and `Sold furnizor` deadlines with overdue/soon badges, plus 1-click `Avans 30%` toggle per applicant.
   - **Multi-Accommodation Rooming & Inventory** (`Camere` tab, `analyzeRooming`, `buildHotelRoomingRows`): add multiple stays per Master Trip (each with `Double/Twin` & `Single` room counts), copy rooming from Stay 1, detect unpaired `Twin (Partajabil)` (`Caută coleg(ă)`) or over-allocated inventory, and export hotel-ready Rooming CSV per stay stripped of internal pricing.
   - **Document Story & Versioning** (`Documente` tab): track `v1 → v2` versions, `Client` vs `Furnizor` audience, and sent history log.
   - **Offer Master & Print/PDF** tab with optional Gemini AI draft, WhatsApp copy, and `@media print`.
   - **Messaging Templates** (`public/template-utils.js`): 5 Romanian WhatsApp/Email templates (`Confirmare aplicare`, `Ofertă & Avans`, `Propunere coleg Twin`, `Reminder plată`, `Checklist pre-plecare`) with auto-interpolation, clipboard copy, and `mailto:` launch.
   - **Two-Way Excel (.csv) Local Sync** (`CSV` tab): bind a local `.csv` file via File System Access API (`showSaveFilePicker`) to both write updates (`Scrie în Excel`) and pull edits made in Excel (`Citește din Excel`).
   - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (11/11 passing offline).
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (12/12 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

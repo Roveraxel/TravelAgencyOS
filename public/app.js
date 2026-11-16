@@ -8,8 +8,11 @@ import { getDueStatus, getDueLabel } from '/date-utils.js';
 import {
   APPLICATION_STAGES,
   ROOM_TYPES,
+  POSTING_STATUSES,
+  DEADLINE_KINDS,
   computeMasterTripMetrics,
   autoQualifyApplication,
+  buildPublicTripPostingView,
   analyzeRooming,
   buildHotelRoomingRows,
 } from '/trip-utils.js';
@@ -34,7 +37,15 @@ function createSeedState() {
         pricePerPax: 1850,
         fixedCost: 400,
         currency: 'EUR',
+        postingStatus: 'Publicat',
         style: 'Expediție grup mic, snowmobile, observare natură',
+        publicSummary: '7 zile în Arctica cu grup restrâns (max 10 persoane), tură cu snowmobilul și cabană nordică.',
+        includedText: 'Cazare 7 nopți, ghid însoțitor, tură snowmobil, transfer aeroport',
+        excludedText: 'Zbor internațional, echipament termic personal, asigurare',
+        customQuestions: [
+          { id: 'q-1', label: 'Rezistență la temperaturi sub -15°C și drumeții?', requiredAnswer: 'Da' },
+          { id: 'q-2', label: 'Pașaport valabil la data călătoriei?', requiredAnswer: 'Da' },
+        ],
         notes: 'Include ghid local și transfer aeroport. Echipament polar [DE CONFIRMAT].',
         stays: [
           { id: 'stay-1', name: 'Basecamp Longyearbyen', nights: 7, doubleRooms: 4, singleRooms: 2 },
@@ -50,7 +61,14 @@ function createSeedState() {
         pricePerPax: 1550,
         fixedCost: 300,
         currency: 'RON',
+        postingStatus: 'Publicat',
         style: 'Drumeții ușoare, pensiuni locale, cină tradițională',
+        publicSummary: 'Weekend prelungit pe poteci din Maramureș, cazare autentică în Breb și mese locale.',
+        includedText: 'Cazare 3 nopți cu demipensiune, ghid montan, transport microbuz',
+        excludedText: 'Mesele de prânz, bilete intrare obiective',
+        customQuestions: [
+          { id: 'q-3', label: 'Experiență minimă drumeții 3–4h/zi?', requiredAnswer: 'Da' },
+        ],
         notes: 'Plecări din Timișoara / Cluj.',
         stays: [
           { id: 'stay-2', name: 'Pensiunea Breb', nights: 3, doubleRooms: 5, singleRooms: 2 },
@@ -66,7 +84,14 @@ function createSeedState() {
         pricePerPax: 2150,
         fixedCost: 600,
         currency: 'EUR',
+        postingStatus: 'Publicat',
         style: 'Grup de prieteni, street food, temple Angkor',
+        publicSummary: 'Circuit de 14 zile din nordul Vietnamului până la templele Angkor Wat.',
+        includedText: 'Cazare 4*, croazieră Ha Long Bay 2n, transferuri interne, ghid',
+        excludedText: 'Zbor intercontinental, taxe de viză',
+        customQuestions: [
+          { id: 'q-4', label: 'Pașaport valabil minim 6 luni de la retur?', requiredAnswer: 'Da' },
+        ],
         notes: 'Zbor internațional [DE CONFIRMAT].',
         stays: [
           { id: 'stay-3', name: 'Hanoi Boutique', nights: 4, doubleRooms: 5, singleRooms: 2 },
@@ -88,6 +113,7 @@ function createSeedState() {
         customerId: 'cust-1',
         pax: 2,
         budgetPerPax: 1900,
+        depositPaid: true,
         roomType: 'Double',
         roomCode: 'Cam. 1',
         stage: 'Avans achitat',
@@ -102,6 +128,7 @@ function createSeedState() {
         customerId: 'cust-2',
         pax: 2,
         budgetPerPax: 1850,
+        depositPaid: true,
         roomType: 'Double',
         roomCode: 'Cam. 2',
         stage: 'Confirmat',
@@ -116,6 +143,7 @@ function createSeedState() {
         customerId: 'cust-3',
         pax: 1,
         budgetPerPax: 1300,
+        depositPaid: false,
         roomType: 'Twin (Partajabil)',
         roomCode: 'Cam. 3',
         stage: 'Aplicat',
@@ -130,6 +158,7 @@ function createSeedState() {
         customerId: 'cust-4',
         pax: 4,
         budgetPerPax: 1600,
+        depositPaid: false,
         roomType: 'Double',
         roomCode: 'Cam. 1',
         stage: 'Ofertă trimisă',
@@ -138,6 +167,11 @@ function createSeedState() {
         appliedAt: '2026-11-14',
         notes: ['14 nov · Trimis PDF pe WhatsApp'],
       },
+    ],
+    supplierDeadlines: [
+      { id: 'sd-1', tripId: 'trip-1', supplierName: 'Basecamp Longyearbyen', kind: 'Rooming cut-off', dueDate: '2026-11-18', amount: 0, currency: 'EUR', done: false },
+      { id: 'sd-2', tripId: 'trip-1', supplierName: 'Arctic Snowmobile DMC', kind: 'Avans furnizor', dueDate: '2026-11-22', amount: 1800, currency: 'EUR', done: false },
+      { id: 'sd-3', tripId: 'trip-3', supplierName: 'Ha Long Bay Cruise', kind: 'Avans furnizor', dueDate: '2026-12-01', amount: 1200, currency: 'EUR', done: false },
     ],
     tasks: [
       { id: 'tsk-1', title: 'Confirmă echipament polar Svalbard', dueDate: '2026-11-18', done: false, tripId: 'trip-1' },
@@ -171,6 +205,7 @@ function loadState() {
       trips: Array.isArray(parsed.trips) ? parsed.trips : [],
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
       applications: Array.isArray(parsed.applications) ? parsed.applications : [],
+      supplierDeadlines: Array.isArray(parsed.supplierDeadlines) ? parsed.supplierDeadlines : [],
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
       documents: Array.isArray(parsed.documents) ? parsed.documents : [],
       offerDrafts: parsed.offerDrafts && typeof parsed.offerDrafts === 'object' ? parsed.offerDrafts : {},
@@ -203,12 +238,6 @@ function fmtMoney(amount, currency) {
 
 function getCustomer(id) {
   return state.customers.find((c) => c.id === id) || { name: 'Client', channel: '-' };
-}
-
-function qualBadgeClass(status) {
-  if (status === 'Calificat automat') return 'badge badge-profit';
-  if (status === 'Buget sub prag') return 'badge badge-danger';
-  return 'badge badge-warning';
 }
 
 function qualDotHtml(status, reasons = []) {
@@ -253,6 +282,7 @@ document.querySelectorAll('.top-nav-btn').forEach((btn) => {
 /* ---------------- RENDERING ---------------- */
 
 function renderAll() {
+  if (!document.getElementById('master-trips-list')) return;
   renderTripsView();
   renderTasksView();
   renderCustomersView();
@@ -265,7 +295,7 @@ function renderTripsView() {
   if (state.trips.length === 0) {
     listEl.innerHTML = '<div class="muted small" style="padding:14px">Niciun sejur creat.</div>';
     document.getElementById('master-trip-center').innerHTML =
-      '<div class="card">Creați primul Master Trip cu „+ Sejur nou”.</div>';
+      '<div class="card">Creați primul Master Trip cu „+ Sejur”.</div>';
     document.getElementById('applicant-detail-rail').innerHTML = '';
     return;
   }
@@ -280,13 +310,14 @@ function renderTripsView() {
     .map((t) => {
       const m = computeMasterTripMetrics(t, state.applications);
       const active = t.id === trip.id ? 'is-active' : '';
+      const pStatus = t.postingStatus || 'Publicat';
       return `
       <button type="button" class="trip-list-item ${active}" data-select-trip="${esc(t.id)}">
         <div class="trip-item-top">
           <span>${esc(t.title)}</span>
           <span class="profit-text">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, t.currency)}</span>
         </div>
-        <div class="trip-item-meta">${esc(t.dates)} · ${m.confirmedPax}/${t.maxPax} pax</div>
+        <div class="trip-item-meta">${esc(t.dates)} · ${m.confirmedPax}/${t.maxPax} pax · ${esc(pStatus)}</div>
       </button>`;
     })
     .join('');
@@ -348,26 +379,11 @@ function renderMasterTripCenter(trip) {
           </tbody>
         </table>
       </div>`;
-  } else if (state.activeCenterTab === 'costs') {
-    tabBodyHtml = `
-      <div class="card">
-        <h2 style="margin:0 0 12px;font-size:1rem">Structură costuri Master Trip</h2>
-        <div class="two-col-tight">
-          <div><span class="muted small">Cost furnizor / pax</span><div><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div></div>
-          <div><span class="muted small">Preț vânzare / pax</span><div><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div></div>
-          <div><span class="muted small">Cost fix grup (ghid / transfer)</span><div><strong>${fmtMoney(trip.fixedCost, trip.currency)}</strong></div></div>
-          <div><span class="muted small">Capacitate maximă</span><div><strong>${trip.maxPax} pax (${m.spotsRemaining} libere)</strong></div></div>
-        </div>
-        <hr class="divider">
-        <p class="muted small">Note operaționale: ${esc(trip.notes || '-')}</p>
-        <div class="form-actions" style="margin-top:12px">
-          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează structura de cost</button>
-        </div>
-      </div>`;
   } else if (state.activeCenterTab === 'rooms') {
-    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
-      ? trip.stays
-      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
+    const stays =
+      Array.isArray(trip.stays) && trip.stays.length > 0
+        ? trip.stays
+        : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
     let activeStay = stays.find((s) => s.id === state.selectedStayId);
     if (!activeStay) {
       activeStay = stays[0];
@@ -462,6 +478,61 @@ function renderMasterTripCenter(trip) {
             : ''
         }
       </div>`;
+  } else if (state.activeCenterTab === 'posting') {
+    const pub = buildPublicTripPostingView(trip, state.applications);
+    const questions = pub.customQuestions;
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:12px">
+          <div>
+            <h2 style="margin:0;font-size:1rem">Anunț Public Sejur (ATS Job Posting)</h2>
+            <p class="muted small"> Pagina publică nu expune niciodată costurile furnizorilor sau marja agenției.</p>
+          </div>
+          <div class="header-actions">
+            <select id="posting-status-select" class="inline-select" aria-label="Status anunț">
+              ${POSTING_STATUSES.map((st) => `<option value="${st}" ${(trip.postingStatus || 'Publicat') === st ? 'selected' : ''}>${st}</option>`).join('')}
+            </select>
+            <a href="/?apply=${encodeURIComponent(trip.id)}" class="btn btn-secondary btn-sm">Deschide pagina →</a>
+          </div>
+        </div>
+
+        <form id="posting-details-form" class="form-stack">
+          <div class="field">
+            <label for="p-summary">Rezumat public</label>
+            <textarea id="p-summary" name="publicSummary" rows="2" class="input">${esc(pub.publicSummary)}</textarea>
+          </div>
+          <div class="two-col-tight">
+            <div class="field">
+              <label for="p-inc">Inclus în tarif</label>
+              <input id="p-inc" name="includedText" class="input" value="${esc(pub.includedText)}">
+            </div>
+            <div class="field">
+              <label for="p-exc">Neinclus</label>
+              <input id="p-exc" name="excludedText" class="input" value="${esc(pub.excludedText)}">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-sm">Salvează anunțul</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-question-btn">+ Criteriu calificare (Da/Nu)</button>
+          </div>
+        </form>
+
+        <hr class="divider">
+        <div class="small muted" style="margin-bottom:8px;font-weight:600">Criterii de auto-calificare la înscriere (${questions.length})</div>
+        ${
+          questions.length === 0
+            ? '<p class="muted small">Doar verificare automată de buget și locuri.</p>'
+            : `<div class="stack">${questions
+                .map(
+                  (q) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <span class="small"><strong>${esc(q.label)}</strong> · Răspuns cerut: <code>${esc(q.requiredAnswer || 'Da')}</code></span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-question="${esc(q.id)}">✕</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
+      </div>`;
   } else if (state.activeCenterTab === 'docs') {
     const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
     tabBodyHtml = `
@@ -481,7 +552,7 @@ function renderMasterTripCenter(trip) {
                     <strong>${esc(d.title)}</strong>
                     <span class="badge">${esc(d.audience || 'Client')}</span>
                     <span class="badge badge-accent">v${d.version || 1}</span>
-                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
+                    <div class="muted small">${esc(d.kind)} · ${d.sentLog && d.sentLog[0] ? esc(d.sentLog[0]) : 'Netrimis'}</div>
                   </div>
                   <div class="header-actions">
                     <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
@@ -490,6 +561,51 @@ function renderMasterTripCenter(trip) {
                   </div>
                 </div>`
                 )
+                .join('')}</div>`
+        }
+      </div>`;
+  } else if (state.activeCenterTab === 'costs') {
+    const tripDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.tripId === trip.id);
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:12px">
+          <h2 style="margin:0;font-size:1rem">Costuri &amp; Scadențe Furnizori</h2>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează costuri</button>
+            <button type="button" class="btn btn-primary btn-sm" id="add-deadline-btn">+ Scadență furnizor</button>
+          </div>
+        </div>
+        <div class="metric-strip" style="margin-bottom:14px">
+          <div class="metric-item"><span>Cost/pax</span><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div>
+          <div class="metric-item"><span>Preț/pax</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div>
+          <div class="metric-item"><span>Cost fix</span><strong>${fmtMoney(trip.fixedCost, trip.currency)}</strong></div>
+          <div class="metric-item"><span>Cost total (${m.basisPax} pax)</span><strong>${fmtMoney(m.totalCost, trip.currency)}</strong></div>
+          <div class="metric-item is-profit"><span>Profit</span><strong>+${fmtMoney(m.profit, trip.currency)}</strong></div>
+        </div>
+        <div class="small muted" style="margin-bottom:8px;font-weight:600">Cut-off &amp; Plăți Furnizori (${tripDeadlines.length})</div>
+        ${
+          tripDeadlines.length === 0
+            ? '<p class="muted small">Nicio scadență furnizor adăugată.</p>'
+            : `<div class="stack">${tripDeadlines
+                .map((sd) => {
+                  const st = sd.done ? 'none' : getDueStatus(sd.dueDate);
+                  const lbl = getDueLabel(st);
+                  return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);opacity:${sd.done ? 0.6 : 1}">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                      <input type="checkbox" ${sd.done ? 'checked' : ''} data-toggle-deadline="${esc(sd.id)}">
+                      <div>
+                        <strong>${esc(sd.supplierName)}</strong> · <span class="badge">${esc(sd.kind)}</span>
+                        <div class="muted small">
+                          Termen: ${esc(sd.dueDate || '-')}
+                          ${lbl ? `<span class="badge ${st === 'overdue' ? 'badge-danger' : 'badge-warning'}">${esc(lbl)}</span>` : ''}
+                          ${sd.amount ? ` · ${fmtMoney(sd.amount, sd.currency)}` : ''}
+                        </div>
+                      </div>
+                    </label>
+                    <button type="button" class="btn btn-ghost btn-sm" data-delete-deadline="${esc(sd.id)}">✕</button>
+                  </div>`;
+                })
                 .join('')}</div>`
         }
       </div>`;
@@ -527,7 +643,7 @@ function renderMasterTripCenter(trip) {
       <div class="master-header">
         <div>
           <h1>${esc(trip.title)}</h1>
-          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.confirmedPax}/${trip.maxPax} pax</p>
+          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · <span class="badge">${esc(trip.postingStatus || 'Publicat')}</span></p>
         </div>
         <div class="header-actions no-print">
           <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">Link aplicare</button>
@@ -545,8 +661,9 @@ function renderMasterTripCenter(trip) {
     <div class="sub-tabs no-print">
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">Camere</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">Anunț Public</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri &amp; Furnizori</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă &amp; PDF</button>
     </div>
 
@@ -585,6 +702,9 @@ function renderApplicantRightRail(trip) {
     </div>
     <div class="form-actions">
       <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">→ Etapă</button>
+      <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+        <input type="checkbox" id="rail-deposit-toggle" ${app.depositPaid ? 'checked' : ''}> Avans 30%
+      </label>
     </div>
 
     <div class="rail-header" style="padding:10px 0 6px"><span>Șablon mesaj</span></div>
@@ -693,6 +813,8 @@ document.addEventListener('click', async (e) => {
 
   if (btn.id === 'new-trip-btn') openTripModal();
   else if (btn.id === 'add-stay-btn') openStayModal();
+  else if (btn.id === 'add-question-btn') openQuestionModal();
+  else if (btn.id === 'add-deadline-btn') openDeadlineModal();
   else if (btn.id === 'copy-stay1-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     const stay1 = trip?.stays?.[0];
@@ -705,8 +827,7 @@ document.addEventListener('click', async (e) => {
     saveState();
     renderTripsView();
     showToast('Alocare copiată din prima cazare.');
-  }
-  else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
+  } else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (trip) openTripModal(trip);
   } else if (btn.id === 'apply-to-trip-btn') {
@@ -824,6 +945,17 @@ document.addEventListener('click', async (e) => {
     saveState();
     renderTripsView();
     showToast('Document șters.');
+  } else if (btn.dataset.deleteQuestion) {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (trip && Array.isArray(trip.customQuestions)) {
+      trip.customQuestions = trip.customQuestions.filter((q) => q.id !== btn.dataset.deleteQuestion);
+      saveState();
+      renderTripsView();
+    }
+  } else if (btn.dataset.deleteDeadline) {
+    state.supplierDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.id !== btn.dataset.deleteDeadline);
+    saveState();
+    renderTripsView();
   } else if (btn.dataset.deleteTask) {
     state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.deleteTask);
     saveState();
@@ -842,6 +974,26 @@ document.addEventListener('change', (e) => {
       saveState();
       renderTripsView();
       showToast(`Status: ${app.stage}`);
+    }
+  } else if (e.target.id === 'posting-status-select') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (trip) {
+      trip.postingStatus = e.target.value;
+      saveState();
+      renderTripsView();
+      showToast(`Status anunț: ${trip.postingStatus}`);
+    }
+  } else if (e.target.id === 'rail-deposit-toggle') {
+    const app = state.applications.find((a) => a.id === state.selectedAppId);
+    if (app) {
+      app.depositPaid = e.target.checked;
+      if (app.depositPaid && app.stage === 'Ofertă trimisă') {
+        app.stage = 'Avans achitat';
+      }
+      app.notes.unshift(`Azi · Avans 30%: ${app.depositPaid ? 'Achitat' : 'Neachitat'}`);
+      saveState();
+      renderTripsView();
+      showToast(app.depositPaid ? 'Avans 30% marcat achitat.' : 'Avans demarcat.');
     }
   } else if (e.target.id === 'rail-tpl-select') {
     selectedTemplateId = e.target.value;
@@ -867,6 +1019,13 @@ document.addEventListener('change', (e) => {
         app.roomByStay[state.selectedStayId] = { ...prev, roomCode: e.target.value };
       }
       app.roomCode = e.target.value;
+      saveState();
+      renderTripsView();
+    }
+  } else if (e.target.matches('input[type="checkbox"][data-toggle-deadline]')) {
+    const sd = (state.supplierDeadlines || []).find((x) => x.id === e.target.dataset.toggleDeadline);
+    if (sd) {
+      sd.done = e.target.checked;
       saveState();
       renderTripsView();
     }
@@ -898,6 +1057,17 @@ document.addEventListener('submit', (e) => {
       renderTripsView();
       showToast('Notă adăugată.');
     }
+  } else if (e.target.id === 'posting-details-form') {
+    e.preventDefault();
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    trip.publicSummary = (fd.publicSummary || '').trim();
+    trip.includedText = (fd.includedText || '').trim();
+    trip.excludedText = (fd.excludedText || '').trim();
+    saveState();
+    renderTripsView();
+    showToast('Anunțul public a fost salvat.');
   }
 });
 
@@ -910,14 +1080,15 @@ const modalErrorEl = document.getElementById('modal-error');
 const modalFormEl = document.getElementById('modal-form');
 
 function closeModal() {
+  if (!modalEl) return;
   modalEl.hidden = true;
   activeModal = null;
   modalErrorEl.hidden = true;
 }
 
-document.getElementById('modal-close-btn').addEventListener('click', closeModal);
-document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
-modalEl.addEventListener('click', (e) => {
+document.getElementById('modal-close-btn')?.addEventListener('click', closeModal);
+document.getElementById('modal-cancel-btn')?.addEventListener('click', closeModal);
+modalEl?.addEventListener('click', (e) => {
   if (e.target === modalEl) closeModal();
 });
 
@@ -949,8 +1120,9 @@ function openApplyModal() {
   if (!trip) return;
   activeModal = { type: 'apply', tripId: trip.id };
   modalTitleEl.textContent = `Aplică la: ${trip.title}`;
+  const questions = Array.isArray(trip.customQuestions) ? trip.customQuestions : [];
   modalFieldsEl.innerHTML = `
-    <p class="muted small">Simulează aplicarea unui client (stil ATS). Sistemul califică automat aplicantul în funcție de buget (${trip.pricePerPax} ${trip.currency}/pax) și locuri.</p>
+    <p class="muted small">Simulează aplicarea unui client. Sistemul califică automat bugetul (${trip.pricePerPax} ${trip.currency}/pax), locurile și criteriile.</p>
     <div class="field"><label for="a-name">Nume client (sintetic) *</label><input id="a-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
     <div class="two-col-tight">
       <div class="field"><label for="a-pax">Nr. persoane</label><input id="a-pax" name="pax" type="number" min="1" class="input" value="2"></div>
@@ -959,6 +1131,46 @@ function openApplyModal() {
     <div class="two-col-tight">
       <div class="field"><label for="a-channel">Canal</label><select id="a-channel" name="channel" class="input"><option>Formular Sejur</option><option>WhatsApp</option><option>Instagram</option><option>Email</option></select></div>
       <div class="field"><label for="a-room">Preferință cameră</label><select id="a-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
+    </div>
+    ${questions
+      .map(
+        (q) => `
+      <div class="field">
+        <label for="aq-${esc(q.id)}">${esc(q.label)}</label>
+        <select id="aq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
+          <option value="Da">Da</option>
+          <option value="Nu">Nu</option>
+        </select>
+      </div>`
+      )
+      .join('')}
+  `;
+  modalEl.hidden = false;
+}
+
+function openQuestionModal() {
+  activeModal = { type: 'question', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Criteriu nou de calificare';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="q-lbl">Întrebare Da/Nu pentru aplicant *</label><input id="q-lbl" name="label" class="input" required placeholder="ex. Experiență drumeții montane?"></div>
+    <div class="field"><label for="q-req">Răspuns cerut pentru calificare automată</label><select id="q-req" name="requiredAnswer" class="input"><option value="Da">Da</option><option value="Nu">Nu</option></select></div>
+  `;
+  modalEl.hidden = false;
+}
+
+function openDeadlineModal() {
+  const trip = state.trips.find((t) => t.id === state.selectedTripId);
+  activeModal = { type: 'deadline', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Scadență furnizor nouă';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="sd-sup">Furnizor / Hotel *</label><input id="sd-sup" name="supplierName" class="input" required placeholder="ex. Basecamp Hotel"></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="sd-kind">Tip scadență</label><select id="sd-kind" name="kind" class="input">${DEADLINE_KINDS.map((k) => `<option value="${k}">${k}</option>`).join('')}</select></div>
+      <div class="field"><label for="sd-due">Dată limită *</label><input id="sd-due" name="dueDate" type="date" class="input" required></div>
+    </div>
+    <div class="two-col-tight">
+      <div class="field"><label for="sd-amt">Sumă (opțional)</label><input id="sd-amt" name="amount" type="number" min="0" class="input" value="0"></div>
+      <div class="field"><label for="sd-cur">Monedă</label><select id="sd-cur" name="currency" class="input">${VALID_CURRENCIES.map((c) => `<option value="${c}" ${trip?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
     </div>
   `;
   modalEl.hidden = false;
@@ -1002,7 +1214,7 @@ function openTaskModal() {
   modalEl.hidden = false;
 }
 
-modalFormEl.addEventListener('submit', (e) => {
+modalFormEl?.addEventListener('submit', (e) => {
   e.preventDefault();
   if (!activeModal) return;
   const data = Object.fromEntries(new FormData(modalFormEl).entries());
@@ -1026,138 +1238,9 @@ modalFormEl.addEventListener('submit', (e) => {
     };
     if (activeModal.id) {
       Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
-    } else if (state.activeCenterTab === 'rooms') {
-    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
-      ? trip.stays
-      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
-    let activeStay = stays.find((s) => s.id === state.selectedStayId);
-    if (!activeStay) {
-      activeStay = stays[0];
-      state.selectedStayId = activeStay.id;
-    }
-
-    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
-    const isFirstStay = stays[0].id === activeStay.id;
-
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <div class="header-actions">
-            ${stays
-              .map(
-                (s) =>
-                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
-              )
-              .join('')}
-            <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
-          </div>
-          <div class="header-actions">
-            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
-            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
-          </div>
-        </div>
-
-        <div class="metric-strip" style="margin-bottom:12px">
-          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
-          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
-          ${
-            roomSummary.unpairedShareCount > 0
-              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
-              : ''
-          }
-          ${
-            roomSummary.inventoryWarnings.length > 0
-              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
-              : ''
-          }
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Pax</th>
-                <th>Tip cameră</th>
-                <th>Cameră</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                tripApps.filter((a) => a.stage !== 'Respins').length === 0
-                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
-                  : tripApps
-                      .filter((a) => a.stage !== 'Respins')
-                      .map((a) => {
-                        const cust = getCustomer(a.customerId);
-                        const slot = a.roomByStay?.[activeStay.id] || a;
-                        const rType = slot.roomType || a.roomType || 'Double';
-                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
-                        return `
-                        <tr>
-                          <td><strong>${esc(cust.name)}</strong></td>
-                          <td>${a.pax}</td>
-                          <td>
-                            <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
-                            </select>
-                          </td>
-                          <td>
-                            <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
-                            </select>
-                          </td>
-                        </tr>`;
-                      })
-                      .join('')
-              }
-            </tbody>
-          </table>
-        </div>
-        ${
-          roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
-                .filter((r) => r.alert)
-                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
-                .join('')}</div>`
-            : ''
-        }
-      </div>`;
-  } else if (state.activeCenterTab === 'docs') {
-    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
-          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
-        </div>
-        ${
-          tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat.</p>'
-            : `<div class="stack">${tripDocs
-                .map(
-                  (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <div>
-                    <strong>${esc(d.title)}</strong>
-                    <span class="badge">${esc(d.audience || 'Client')}</span>
-                    <span class="badge badge-accent">v${d.version || 1}</span>
-                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
-                  </div>
-                  <div class="header-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
-                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
-                  </div>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-      </div>`;
-  } else {
+    } else {
       const id = uid('trip');
-      state.trips.unshift({ id, ...payload });
+      state.trips.unshift({ id, postingStatus: 'Publicat', customQuestions: [], stays: [], ...payload });
       state.selectedTripId = id;
     }
     showToast('Sejur salvat.');
@@ -1168,9 +1251,14 @@ modalFormEl.addEventListener('submit', (e) => {
     const cust = { id: uid('cust'), name: data.name.trim(), channel: data.channel, note: 'Aplicant sejur' };
     state.customers.unshift(cust);
 
+    const answers = {};
+    for (const q of trip.customQuestions || []) {
+      answers[q.id] = data[`q_${q.id}`] || 'Da';
+    }
+
     const qual = autoQualifyApplication(
       trip,
-      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0), answers },
       metrics.confirmedPax
     );
     const appId = uid('app');
@@ -1180,6 +1268,7 @@ modalFormEl.addEventListener('submit', (e) => {
       customerId: cust.id,
       pax: Number(data.pax || 1),
       budgetPerPax: Number(data.budgetPerPax || 0),
+      depositPaid: false,
       roomType: data.roomType || 'Double',
       roomCode: 'Neasignat',
       stage: qual.suggestedStage,
@@ -1190,6 +1279,32 @@ modalFormEl.addEventListener('submit', (e) => {
     });
     state.selectedAppId = appId;
     showToast(`Aplicant adăugat: ${qual.status}`);
+  } else if (activeModal.type === 'question') {
+    if (!data.label?.trim()) return showError('Întrebarea este obligatorie.');
+    const trip = state.trips.find((t) => t.id === activeModal.tripId);
+    if (trip) {
+      trip.customQuestions = Array.isArray(trip.customQuestions) ? trip.customQuestions : [];
+      trip.customQuestions.push({
+        id: uid('q'),
+        label: data.label.trim(),
+        requiredAnswer: data.requiredAnswer || 'Da',
+      });
+      showToast('Criteriu adăugat.');
+    }
+  } else if (activeModal.type === 'deadline') {
+    if (!data.supplierName?.trim() || !data.dueDate) return showError('Furnizorul și data sunt obligatorii.');
+    state.supplierDeadlines = state.supplierDeadlines || [];
+    state.supplierDeadlines.unshift({
+      id: uid('sd'),
+      tripId: activeModal.tripId,
+      supplierName: data.supplierName.trim(),
+      kind: data.kind || 'Avans furnizor',
+      dueDate: data.dueDate,
+      amount: Number(data.amount || 0),
+      currency: data.currency || 'EUR',
+      done: false,
+    });
+    showToast('Scadență furnizor adăugată.');
   } else if (activeModal.type === 'stay') {
     if (!data.name?.trim()) return showError('Numele cazării este obligatoriu.');
     const trip = state.trips.find((t) => t.id === activeModal.tripId);
@@ -1231,7 +1346,7 @@ modalFormEl.addEventListener('submit', (e) => {
   renderAll();
 });
 
-/* ---------------- CSV & BACKUP ---------------- */
+/* ---------------- CSV & EXCEL SYNC ---------------- */
 
 function exportDatasetCsv(kind) {
   let headers = [];
@@ -1248,7 +1363,7 @@ function exportDatasetCsv(kind) {
       moneda: t.currency,
     }));
   } else if (kind === 'applications') {
-    headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa'];
+    headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa', 'tip_camera', 'camera'];
     rows = state.applications.map((a) => ({
       sejur: state.trips.find((t) => t.id === a.tripId)?.title || '',
       client: getCustomer(a.customerId).name,
@@ -1256,136 +1371,9 @@ function exportDatasetCsv(kind) {
       buget_pax: a.budgetPerPax,
       calificare: a.qualificationStatus,
       etapa: a.stage,
+      tip_camera: a.roomType || 'Double',
+      camera: a.roomCode || 'Neasignat',
     }));
-  } else if (state.activeCenterTab === 'rooms') {
-    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
-      ? trip.stays
-      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
-    let activeStay = stays.find((s) => s.id === state.selectedStayId);
-    if (!activeStay) {
-      activeStay = stays[0];
-      state.selectedStayId = activeStay.id;
-    }
-
-    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
-    const isFirstStay = stays[0].id === activeStay.id;
-
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <div class="header-actions">
-            ${stays
-              .map(
-                (s) =>
-                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
-              )
-              .join('')}
-            <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
-          </div>
-          <div class="header-actions">
-            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
-            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
-          </div>
-        </div>
-
-        <div class="metric-strip" style="margin-bottom:12px">
-          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
-          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
-          ${
-            roomSummary.unpairedShareCount > 0
-              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
-              : ''
-          }
-          ${
-            roomSummary.inventoryWarnings.length > 0
-              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
-              : ''
-          }
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Pax</th>
-                <th>Tip cameră</th>
-                <th>Cameră</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                tripApps.filter((a) => a.stage !== 'Respins').length === 0
-                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
-                  : tripApps
-                      .filter((a) => a.stage !== 'Respins')
-                      .map((a) => {
-                        const cust = getCustomer(a.customerId);
-                        const slot = a.roomByStay?.[activeStay.id] || a;
-                        const rType = slot.roomType || a.roomType || 'Double';
-                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
-                        return `
-                        <tr>
-                          <td><strong>${esc(cust.name)}</strong></td>
-                          <td>${a.pax}</td>
-                          <td>
-                            <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
-                            </select>
-                          </td>
-                          <td>
-                            <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
-                            </select>
-                          </td>
-                        </tr>`;
-                      })
-                      .join('')
-              }
-            </tbody>
-          </table>
-        </div>
-        ${
-          roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
-                .filter((r) => r.alert)
-                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
-                .join('')}</div>`
-            : ''
-        }
-      </div>`;
-  } else if (state.activeCenterTab === 'docs') {
-    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
-          <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
-        </div>
-        ${
-          tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat.</p>'
-            : `<div class="stack">${tripDocs
-                .map(
-                  (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <div>
-                    <strong>${esc(d.title)}</strong>
-                    <span class="badge">${esc(d.audience || 'Client')}</span>
-                    <span class="badge badge-accent">v${d.version || 1}</span>
-                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
-                  </div>
-                  <div class="header-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
-                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
-                  </div>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-      </div>`;
   } else {
     headers = ['nume', 'canal', 'nota'];
     rows = state.customers.map((c) => ({ nume: c.name, canal: c.channel, nota: c.note }));
@@ -1421,12 +1409,12 @@ function previewCsv(text) {
     .join('');
 }
 
-document.getElementById('csv-file-input').addEventListener('change', async (e) => {
+document.getElementById('csv-file-input')?.addEventListener('change', async (e) => {
   const f = e.target.files?.[0];
   if (f) previewCsv(await f.text());
 });
 
-document.getElementById('csv-sample-btn').addEventListener('click', () => {
+document.getElementById('csv-sample-btn')?.addEventListener('click', () => {
   previewCsv(
     [
       'client,destinatie,data_plecare,buget,moneda',
@@ -1436,7 +1424,7 @@ document.getElementById('csv-sample-btn').addEventListener('click', () => {
   );
 });
 
-document.getElementById('csv-commit-btn').addEventListener('click', () => {
+document.getElementById('csv-commit-btn')?.addEventListener('click', () => {
   const trip = state.trips[0];
   if (!trip) return;
   let added = 0;
@@ -1491,7 +1479,7 @@ async function writeLinkedExcelFile() {
   }
 }
 
-document.getElementById('link-excel-btn').addEventListener('click', async () => {
+document.getElementById('link-excel-btn')?.addEventListener('click', async () => {
   if (typeof window.showSaveFilePicker !== 'function') {
     exportDatasetCsv('applications');
     showToast('Browserul nu suportă File System Access; s-a descărcat CSV.');
@@ -1511,7 +1499,7 @@ document.getElementById('link-excel-btn').addEventListener('click', async () => 
   }
 });
 
-document.getElementById('sync-excel-btn').addEventListener('click', async () => {
+document.getElementById('sync-excel-btn')?.addEventListener('click', async () => {
   try {
     await writeLinkedExcelFile();
     showToast('Excel (.csv) actualizat.');
@@ -1520,34 +1508,7 @@ document.getElementById('sync-excel-btn').addEventListener('click', async () => 
   }
 });
 
-document.getElementById('backup-json-btn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `garlic-demo-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('restore-json-input').addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const parsed = JSON.parse(await file.text());
-    if (!Array.isArray(parsed.trips) || !Array.isArray(parsed.applications)) {
-      return showToast('Fișier JSON invalid.');
-    }
-    state = parsed;
-    saveState();
-    renderAll();
-    showToast('Backup restaurat.');
-  } catch {
-    showToast('Eroare la citirea JSON.');
-  }
-});
-
-document.getElementById('pull-excel-btn').addEventListener('click', async () => {
+document.getElementById('pull-excel-btn')?.addEventListener('click', async () => {
   if (!linkedExcelHandle) return;
   try {
     const file = await linkedExcelHandle.getFile();
@@ -1606,41 +1567,139 @@ document.getElementById('pull-excel-btn').addEventListener('click', async () => 
   }
 });
 
-document.getElementById('reset-demo-btn').addEventListener('click', () => {
+document.getElementById('backup-json-btn')?.addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `garlic-demo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('restore-json-input')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (!Array.isArray(parsed.trips) || !Array.isArray(parsed.applications)) {
+      return showToast('Fișier JSON invalid.');
+    }
+    state = parsed;
+    saveState();
+    renderAll();
+    showToast('Backup restaurat.');
+  } catch {
+    showToast('Eroare la citirea JSON.');
+  }
+});
+
+document.getElementById('reset-demo-btn')?.addEventListener('click', () => {
   state = createSeedState();
   saveState();
   renderAll();
   showToast('Date demo Garlic Trips resetate.');
 });
 
+/* ---------------- PUBLIC BOARD & APPLY VIEWS ---------------- */
+
+function renderPublicBoardPage() {
+  const publicTrips = state.trips
+    .map((t) => buildPublicTripPostingView(t, state.applications))
+    .filter((p) => p.postingStatus === 'Publicat' || p.postingStatus === 'Locuri epuizate');
+
+  document.body.innerHTML = `
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand"><span class="brand-dot"></span><span>Garlic Trips · Sejururi de Grup</span></div>
+      </div>
+      <div class="topbar-right">
+        <a href="/" class="btn btn-secondary btn-sm">Workspace Agenție →</a>
+      </div>
+    </header>
+    <main class="page-container" style="max-width:920px">
+      <div class="page-header">
+        <div>
+          <h1>Aventuri de grup deschise</h1>
+          <p class="muted small">Alege sejurul și aplică direct — locurile sunt limitate.</p>
+        </div>
+      </div>
+      <div class="stack">
+        ${
+          publicTrips.length === 0
+            ? '<div class="card muted">Niciun sejur publicat în acest moment.</div>'
+            : publicTrips
+                .map(
+                  (p) => `
+                <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+                  <div style="flex:1;min-width:240px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                      <strong style="font-size:1.1rem">${esc(p.title)}</strong>
+                      <span class="badge ${p.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}">${p.spotsRemaining > 0 ? `${p.spotsRemaining} locuri libere` : 'Locuri epuizate'}</span>
+                    </div>
+                    <div class="muted small" style="margin-bottom:6px">${esc(p.destination)} · ${esc(p.dates)}</div>
+                    <div class="small">${esc(p.publicSummary)}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-size:1.15rem;font-weight:700;margin-bottom:8px">${fmtMoney(p.pricePerPax, p.currency)} <span class="muted small">/ pers.</span></div>
+                    <a href="/?apply=${encodeURIComponent(p.id)}" class="btn btn-accent btn-sm">Aplică la sejur →</a>
+                  </div>
+                </div>`
+                )
+                .join('')
+        }
+      </div>
+    </main>
+  `;
+}
+
 function renderPublicApplyPage(tripId) {
   const trip = state.trips.find((t) => t.id === tripId) || state.trips[0];
   if (!trip) return renderAll();
+  const pub = buildPublicTripPostingView(trip, state.applications);
   const m = computeMasterTripMetrics(trip, state.applications);
 
   document.body.innerHTML = `
     <header class="topbar">
       <div class="topbar-left">
-        <div class="brand"><span class="brand-dot"></span><span>GarlicOS · Înscriere Sejur</span></div>
+        <div class="brand"><span class="brand-dot"></span><span>Garlic Trips · Înscriere Sejur</span></div>
       </div>
       <div class="topbar-right">
-        <a href="/" class="btn btn-secondary btn-sm">Înapoi la Workspace</a>
+        <a href="/?board=1" class="btn btn-secondary btn-sm">← Toate sejururile</a>
+        <a href="/" class="btn btn-secondary btn-sm">Workspace Agenție</a>
       </div>
     </header>
-    <main class="page-container" style="max-width:560px">
+    <main class="page-container" style="max-width:600px">
       <div class="card">
-        <h1 style="margin:0 0 4px;font-size:1.35rem">${esc(trip.title)}</h1>
-        <p class="muted small" style="margin-bottom:14px">${esc(trip.destination)} · ${esc(trip.dates)} · ${m.spotsRemaining} locuri disponibile</p>
-        <div class="metric-strip" style="margin-bottom:16px">
-          <div class="metric-item"><span>Tarif orientativ</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}/pax</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+          <h1 style="margin:0;font-size:1.35rem">${esc(pub.title)}</h1>
+          <span class="badge ${pub.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}">${pub.spotsRemaining} locuri libere</span>
+        </div>
+        <p class="muted small" style="margin-bottom:10px">${esc(pub.destination)} · ${esc(pub.dates)}</p>
+        <p class="small" style="margin:0 0 12px">${esc(pub.publicSummary)}</p>
+        <div class="metric-strip" style="margin-bottom:14px">
+          <div class="metric-item"><span>Tarif orientativ</span><strong>${fmtMoney(pub.pricePerPax, pub.currency)}/pers.</strong></div>
+          <div class="metric-item"><span>Inclus</span><strong>${esc(pub.includedText)}</strong></div>
         </div>
         <form id="public-apply-form" class="form-stack">
           <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
           <div class="two-col-tight">
             <div class="field"><label for="pa-pax">Nr. persoane</label><input id="pa-pax" name="pax" type="number" min="1" class="input" value="2"></div>
-            <div class="field"><label for="pa-budget">Buget / pax (${esc(trip.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(trip.pricePerPax)}"></div>
+            <div class="field"><label for="pa-budget">Buget / pers. (${esc(pub.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(pub.pricePerPax)}"></div>
           </div>
           <div class="field"><label for="pa-room">Preferință cameră</label><select id="pa-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
+          ${pub.customQuestions
+            .map(
+              (q) => `
+            <div class="field">
+              <label for="paq-${esc(q.id)}">${esc(q.label)}</label>
+              <select id="paq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
+                <option value="Da">Da</option>
+                <option value="Nu">Nu</option>
+              </select>
+            </div>`
+            )
+            .join('')}
           <button type="submit" class="btn btn-accent">Trimite aplicarea</button>
         </form>
         <div id="public-apply-result" style="margin-top:14px"></div>
@@ -1652,11 +1711,15 @@ function renderPublicApplyPage(tripId) {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target).entries());
     if (!data.name?.trim()) return;
-    const cust = { id: uid('cust'), name: data.name.trim(), channel: 'Link aplicare', note: 'Aplicat online' };
+    const cust = { id: uid('cust'), name: data.name.trim(), channel: 'Board Public', note: 'Aplicat online' };
     state.customers.unshift(cust);
+    const answers = {};
+    for (const q of pub.customQuestions) {
+      answers[q.id] = data[`q_${q.id}`] || 'Da';
+    }
     const qual = autoQualifyApplication(
       trip,
-      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0), answers },
       m.confirmedPax
     );
     state.applications.unshift({
@@ -1665,13 +1728,14 @@ function renderPublicApplyPage(tripId) {
       customerId: cust.id,
       pax: Number(data.pax || 1),
       budgetPerPax: Number(data.budgetPerPax || 0),
+      depositPaid: false,
       roomType: data.roomType || 'Double',
       roomCode: 'Neasignat',
       stage: qual.suggestedStage,
       qualificationStatus: qual.status,
       qualificationReasons: qual.reasons,
       appliedAt: new Date().toISOString().slice(0, 10),
-      notes: [`Azi · Aplicat via link (${qual.status})`],
+      notes: [`Azi · Aplicat via Board Public (${qual.status})`],
     });
     state.selectedTripId = trip.id;
     saveState();
@@ -1685,9 +1749,11 @@ function renderPublicApplyPage(tripId) {
   });
 }
 
-const applyTripParam = new URLSearchParams(window.location.search).get('apply');
-if (applyTripParam) {
-  renderPublicApplyPage(applyTripParam);
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('board')) {
+  renderPublicBoardPage();
+} else if (urlParams.get('apply')) {
+  renderPublicApplyPage(urlParams.get('apply'));
 } else {
   renderAll();
 }

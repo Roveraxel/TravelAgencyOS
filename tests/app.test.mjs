@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
 import { renderMessageTemplate } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
@@ -196,4 +196,27 @@ test('renderMessageTemplate interpolates trip, applicant, and customer fields', 
   assert.ok(out.body.includes('Radu Demo'));
   assert.ok(out.body.includes('3700 EUR'));
   assert.ok(out.body.includes('6 locuri'));
+});
+
+test('buildPublicTripPostingView strips internal costs and autoQualifyApplication evaluates custom questions', () => {
+  const trip = {
+    id: 't1',
+    title: 'Svalbard',
+    destination: 'Longyearbyen',
+    dates: '2027-03-14',
+    maxPax: 6,
+    costPerPax: 1400,
+    pricePerPax: 1850,
+    fixedCost: 400,
+    currency: 'EUR',
+    postingStatus: 'Publicat',
+    customQuestions: [{ id: 'q1', label: 'Drumeții iarna?', requiredAnswer: 'Da' }],
+  };
+  const pub = buildPublicTripPostingView(trip, [{ tripId: 't1', pax: 2, stage: 'Confirmat' }]);
+  assert.equal(pub.spotsRemaining, 4);
+  assert.equal('costPerPax' in pub, false);
+  assert.equal('fixedCost' in pub, false);
+
+  const qFail = autoQualifyApplication(trip, { pax: 1, budgetPerPax: 1850, answers: { q1: 'Nu' } }, 2);
+  assert.equal(qFail.status, 'Necesită verificare');
 });

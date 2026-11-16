@@ -18,6 +18,19 @@ export const ROOM_TYPES = [
   'Triple',
 ];
 
+export const POSTING_STATUSES = [
+  'Draft',
+  'Publicat',
+  'Locuri epuizate',
+  'Arhivat',
+];
+
+export const DEADLINE_KINDS = [
+  'Rooming cut-off',
+  'Avans furnizor',
+  'Sold furnizor',
+];
+
 const ACTIVE_REVENUE_STAGES = new Set(['Ofertă trimisă', 'Avans achitat', 'Confirmat']);
 const CONFIRMED_STAGES = new Set(['Avans achitat', 'Confirmat']);
 
@@ -81,6 +94,14 @@ export function autoQualifyApplication(trip, application, currentConfirmedPax = 
     };
   }
 
+  const questions = Array.isArray(trip.customQuestions) ? trip.customQuestions : [];
+  const answers = application.answers && typeof application.answers === 'object' ? application.answers : {};
+  for (const q of questions) {
+    if (q.requiredAnswer && answers[q.id] && answers[q.id] !== q.requiredAnswer) {
+      reasons.push(`Criteriu: ${q.label} (${answers[q.id]})`);
+    }
+  }
+
   if (reasons.length > 0) {
     return {
       status: 'Necesită verificare',
@@ -94,6 +115,34 @@ export function autoQualifyApplication(trip, application, currentConfirmedPax = 
     status: 'Calificat automat',
     reasons,
     suggestedStage: 'Calificat',
+  };
+}
+
+/**
+ * Construiește proiecția publică a unui Master Trip (fără costPerPax, fixedCost, profit sau note interne).
+ */
+export function buildPublicTripPostingView(trip, applications = []) {
+  const metrics = computeMasterTripMetrics(trip, applications);
+  const status =
+    trip.postingStatus === 'Publicat' && metrics.spotsRemaining === 0
+      ? 'Locuri epuizate'
+      : trip.postingStatus || 'Publicat';
+
+  return {
+    id: trip.id,
+    title: trip.title,
+    destination: trip.destination,
+    dates: trip.dates,
+    pricePerPax: Number(trip.pricePerPax || 0),
+    currency: trip.currency || 'EUR',
+    style: trip.style || '',
+    postingStatus: status,
+    publicSummary: trip.publicSummary || trip.style || '',
+    includedText: trip.includedText || 'Cazare, ghid însoțitor, organizare grup',
+    excludedText: trip.excludedText || 'Cheltuieli personale, asigurare medicală/storno',
+    customQuestions: Array.isArray(trip.customQuestions) ? trip.customQuestions : [],
+    spotsRemaining: metrics.spotsRemaining,
+    maxPax: Number(trip.maxPax || 0),
   };
 }
 
