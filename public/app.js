@@ -117,6 +117,7 @@ function createSeedState() {
 let state = loadState();
 let activeModal = null;
 let stagedCsvRows = [];
+let enquiryLayout = 'table';
 
 function loadState() {
   try {
@@ -150,6 +151,15 @@ function esc(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function initials(name) {
+  const parts = String(name || '?').trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() || '').join('') || '?';
+}
+
+function avatarCellHtml(name) {
+  return `<div class="avatar-cell"><span class="avatar" aria-hidden="true">${esc(initials(name))}</span><strong>${esc(name)}</strong></div>`;
 }
 
 function getCustomerName(customerId) {
@@ -245,20 +255,32 @@ function renderDashboard() {
 
   document.getElementById('dashboard-kpis').innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-label">Cereri active</div>
-      <div class="kpi-value">${activeEnquiries.length}</div>
+      <div>
+        <div class="kpi-label">Cereri active</div>
+        <div class="kpi-value">${activeEnquiries.length}</div>
+      </div>
+      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Rezervări active</div>
-      <div class="kpi-value">${activeBookings.length}</div>
+      <div>
+        <div class="kpi-label">Rezervări active</div>
+        <div class="kpi-value">${activeBookings.length}</div>
+      </div>
+      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Valoare rezervări active</div>
-      <div class="kpi-value" style="font-size:1.25rem">${esc(totalsText)}</div>
+      <div>
+        <div class="kpi-label">Valoare rezervări active</div>
+        <div class="kpi-value" style="font-size:1.25rem">${esc(totalsText)}</div>
+      </div>
+      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3 3 0 0 0-5 2.2c0 2 5 1.5 5 3.8a3 3 0 0 1-5.2 2"/><path d="M12 6v12"/></svg></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Sarcini de făcut</div>
-      <div class="kpi-value">${openTasks.length}</div>
+      <div>
+        <div class="kpi-label">Sarcini de făcut</div>
+        <div class="kpi-value">${openTasks.length}</div>
+      </div>
+      <div class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
     </div>
   `;
 
@@ -316,19 +338,22 @@ function renderEnquiries() {
     );
   });
 
+  const tableWrap = document.getElementById('enquiries-table-wrap');
+  const kanbanWrap = document.getElementById('enquiries-kanban');
+  tableWrap.hidden = enquiryLayout !== 'table';
+  kanbanWrap.hidden = enquiryLayout !== 'kanban';
+
   const tbody = document.getElementById('enquiries-tbody');
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="muted">Nicio cerere găsită.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = filtered
-    .map(
-      (e) => `
+  } else {
+    tbody.innerHTML = filtered
+      .map(
+        (e) => `
     <tr>
-      <td><strong>${esc(getCustomerName(e.customerId))}</strong></td>
+      <td>${avatarCellHtml(getCustomerName(e.customerId))}</td>
       <td>
-        <div>${esc(e.destination)}</div>
+        <div><strong>${esc(e.destination)}</strong></div>
         <div class="muted small">${esc(e.travelDate || 'Dată neprecizată')}</div>
       </td>
       <td>${e.budget ? formatMoney(e.budget, e.currency) : '<span class="muted">-</span>'}</td>
@@ -355,7 +380,47 @@ function renderEnquiries() {
         </div>
       </td>
     </tr>`
-    )
+      )
+      .join('');
+  }
+
+  const pipelineStages = ['Nouă', 'Ofertată', 'În negociere', 'Convertită'];
+  kanbanWrap.innerHTML = pipelineStages
+    .map((stage) => {
+      const items = filtered.filter((e) => e.status === stage);
+      return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span>${esc(stage)}</span>
+          <span class="kanban-count">${items.length}</span>
+        </div>
+        ${
+          items.length === 0
+            ? '<div class="muted small">Nicio cerere</div>'
+            : items
+                .map(
+                  (e) => `
+          <div class="kanban-card">
+            <div class="kanban-card-title">${esc(e.destination)}</div>
+            <div class="kanban-card-meta">${esc(getCustomerName(e.customerId))} · ${esc(e.source || '-')}</div>
+            <div class="kanban-card-meta">
+              ${e.budget ? `<strong>${formatMoney(e.budget, e.currency)}</strong>` : 'Buget -'}
+              ${e.followUpDate ? ` · ${esc(e.followUpDate)}${dueBadgeHtml(e.followUpDate)}` : ''}
+            </div>
+            <div class="header-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-edit-enquiry="${esc(e.id)}">Editează</button>
+              ${
+                e.status !== 'Convertită'
+                  ? `<button type="button" class="btn btn-primary btn-sm" data-convert-enquiry="${esc(e.id)}">Convertește</button>`
+                  : ''
+              }
+            </div>
+          </div>`
+                )
+                .join('')
+        }
+      </div>`;
+    })
     .join('');
 }
 
@@ -384,7 +449,7 @@ function renderBookings() {
     .map(
       (b) => `
     <tr>
-      <td><strong>${esc(getCustomerName(b.customerId))}</strong></td>
+      <td>${avatarCellHtml(getCustomerName(b.customerId))}</td>
       <td>
         <div>${esc(b.destination)}</div>
         <div class="muted small">${esc(b.travelDate || '-')}</div>
@@ -421,7 +486,7 @@ function renderCustomers() {
       const bkCount = state.bookings.filter((b) => b.customerId === c.id).length;
       return `
       <tr>
-        <td><strong>${esc(c.name)}</strong></td>
+        <td>${avatarCellHtml(c.name)}</td>
         <td>${esc(c.channel || '-')}</td>
         <td class="muted small">${esc(c.note || '-')}</td>
         <td>${enqCount}</td>
@@ -524,6 +589,15 @@ function syncOfferPrintPreview() {
 document.addEventListener('click', (event) => {
   const btn = event.target.closest('button');
   if (!btn) return;
+
+  if (btn.dataset.enquiryLayout) {
+    enquiryLayout = btn.dataset.enquiryLayout;
+    document.querySelectorAll('[data-enquiry-layout]').forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.enquiryLayout === enquiryLayout);
+    });
+    renderEnquiries();
+    return;
+  }
 
   if (btn.dataset.openModal) {
     openEntityModal(btn.dataset.openModal);

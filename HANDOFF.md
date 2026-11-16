@@ -13,7 +13,7 @@
 - Responsive Romanian-first UI (`public/index.html`, `public/styles.css`, `public/app.js`) with:
   - Explicit local-only prototype warning banner and toast feedback (`#toast-region`).
   - Dashboard KPIs (active enquiries, active bookings, totals by explicit currency, open tasks).
-  - Enquiries CRUD + inline status quick-change + inline rapid customer creation + **Convert to Booking** (`Convertește`) + **+ Sarcină** + **Schiță** prefill + delete.
+  - Enquiries CRUD + inline status quick-change + inline rapid customer creation + **Table / Kanban Pipeline** view toggle + **Convert to Booking** (`Convertește`) + **+ Sarcină** + **Schiță** prefill + delete.
   - Bookings CRUD + inline rapid customer creation + **+ Sarcină** linked to booking + delete.
   - Synthetic demo Customers CRUD + delete protection when linked to enquiries/bookings.
   - Tasks & follow-up checklist linked to enquiries/bookings.

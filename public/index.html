@@ -7,47 +7,52 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="prototype-banner no-print" role="status">
-    <strong>Prototip local (fără backend / fără autentificare):</strong>
-    Datele sunt salvate exclusiv în browser (<code>localStorage</code>) și exemplele preîncărcate sunt fictive.
-    Nu introduceți date personale reale ale turiștilor (CNP, pașaport, email/telefon real) până la activarea backend-ului securizat.
-  </div>
-
   <div class="app-shell">
     <aside class="sidebar no-print" aria-label="Navigație principală">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">TO</span>
         <div>
           <div class="brand-title">TravelAgencyOS</div>
-          <div class="brand-subtitle">MVP Prototip Local</div>
+          <div class="brand-subtitle">Workspace agenție</div>
         </div>
       </div>
 
       <nav class="nav-list" role="tablist" aria-orientation="vertical">
         <button type="button" class="nav-btn is-active" data-view="dashboard" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
           Panou general
         </button>
         <button type="button" class="nav-btn" data-view="enquiries" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Cereri
         </button>
         <button type="button" class="nav-btn" data-view="bookings" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
           Rezervări
         </button>
         <button type="button" class="nav-btn" data-view="customers" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Clienți
         </button>
         <button type="button" class="nav-btn" data-view="tasks" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Sarcini &amp; Follow-up
         </button>
         <button type="button" class="nav-btn" data-view="offers" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           Schițe ofertă &amp; Print
         </button>
         <button type="button" class="nav-btn" data-view="csv" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Import / Export CSV
         </button>
       </nav>
 
       <div class="sidebar-footer">
+        <div class="local-notice-card" role="status">
+          <strong>Prototip local (localStorage)</strong>
+          Datele demo sunt fictive. Nu introduceți date personale reale (CNP, pașaport, email/telefon) fără backend.
+        </div>
         <div id="ai-status-pill" class="status-pill">Verificare server...</div>
         <button type="button" id="reset-demo-btn" class="btn btn-ghost btn-sm">
           Resetează date demo
@@ -103,18 +108,24 @@
         </header>
 
         <div class="toolbar">
-          <input type="search" id="enquiry-search" class="input" placeholder="Caută după client, destinație sau sursă..." aria-label="Caută cereri">
-          <select id="enquiry-status-filter" class="input" aria-label="Filtrează după status">
-            <option value="">Toate statusurile</option>
-            <option value="Nouă">Nouă</option>
-            <option value="Ofertată">Ofertată</option>
-            <option value="În negociere">În negociere</option>
-            <option value="Convertită">Convertită</option>
-            <option value="Pierdută">Pierdută</option>
-          </select>
+          <div class="toolbar-group">
+            <input type="search" id="enquiry-search" class="input" placeholder="Caută după client, destinație sau sursă..." aria-label="Caută cereri">
+            <select id="enquiry-status-filter" class="input" aria-label="Filtrează după status">
+              <option value="">Toate statusurile</option>
+              <option value="Nouă">Nouă</option>
+              <option value="Ofertată">Ofertată</option>
+              <option value="În negociere">În negociere</option>
+              <option value="Convertită">Convertită</option>
+              <option value="Pierdută">Pierdută</option>
+            </select>
+          </div>
+          <div class="segmented" role="group" aria-label="Mod afișare cereri">
+            <button type="button" class="segmented-btn is-active" data-enquiry-layout="table">Tabel</button>
+            <button type="button" class="segmented-btn" data-enquiry-layout="kanban">Pipeline</button>
+          </div>
         </div>
 
-        <div class="table-wrap">
+        <div id="enquiries-table-wrap" class="table-wrap">
           <table class="data-table">
             <thead>
               <tr>
@@ -130,6 +141,8 @@
             <tbody id="enquiries-tbody"></tbody>
           </table>
         </div>
+
+        <div id="enquiries-kanban" class="kanban-grid" hidden></div>
       </section>
 
       <!-- BOOKINGS -->
