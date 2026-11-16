@@ -83,3 +83,38 @@ export function renderMessageTemplate(templateId, context) {
   }
   return { subject, body, template: tpl };
 }
+
+/**
+ * Extrage automat dată scadentă (YYYY-MM-DD sau DD.MM.YYYY) și sumă (EUR/RON/USD)
+ * dintr-un email de furnizor/hotel pentru conversie rapidă în Scadență sau Sarcină.
+ */
+export function parseInboundEmailText(rawText = '') {
+  const text = String(rawText || '').trim();
+  const firstLine = (text.split(/\r?\n/).find((l) => l.trim()) || 'Email furnizor').trim().slice(0, 90);
+
+  let dueDate = '';
+  const isoMatch = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (isoMatch) {
+    dueDate = isoMatch[1];
+  } else {
+    const roMatch = text.match(/\b(\d{2})[./-](\d{2})[./-](20\d{2})\b/);
+    if (roMatch) {
+      dueDate = `${roMatch[3]}-${roMatch[2]}-${roMatch[1]}`;
+    }
+  }
+
+  let amount = 0;
+  let currency = 'EUR';
+  const moneyMatch = text.match(/\b(\d+(?:[.,]\d+)?)\s*(EUR|RON|USD)\b/i);
+  if (moneyMatch) {
+    amount = Math.round(Number(moneyMatch[1].replace(',', '.')));
+    currency = moneyMatch[2].toUpperCase();
+  }
+
+  return {
+    title: firstLine,
+    dueDate,
+    amount,
+    currency,
+  };
+}

@@ -16,7 +16,7 @@ import {
   analyzeRooming,
   buildHotelRoomingRows,
 } from '/trip-utils.js';
-import { MESSAGE_TEMPLATES, renderMessageTemplate } from '/template-utils.js';
+import { MESSAGE_TEMPLATES, renderMessageTemplate, parseInboundEmailText } from '/template-utils.js';
 import { icon, channelIcon } from '/icons.js';
 
 const STORAGE_KEY = 'travelagencyos_garlic_v2';
@@ -218,6 +218,11 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  fetch('/api/state', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state),
+  }).catch(() => {});
 }
 
 function uid(prefix) {
@@ -843,6 +848,8 @@ document.addEventListener('click', async (e) => {
     }
   } else if (btn.id === 'new-task-btn') {
     openTaskModal();
+  } else if (btn.id === 'parse-email-btn') {
+    openEmailParseModal();
   } else if (btn.id === 'rail-advance-btn') {
     const app = state.applications.find((a) => a.id === state.selectedAppId);
     if (app) {
@@ -865,6 +872,15 @@ document.addEventListener('click', async (e) => {
       `Bună ziua! Vă trimit detaliile pentru ${trip.title} (${trip.dates}): ${trip.pricePerPax} ${trip.currency}/persoană [DE CONFIRMAT].`;
     try {
       await navigator.clipboard.writeText(text);
+      if (btn.id === 'rail-wa-btn') {
+        const app = state.applications.find((a) => a.id === state.selectedAppId);
+        const tpl = MESSAGE_TEMPLATES.find((t) => t.id === selectedTemplateId);
+        if (app && tpl) {
+          app.notes.unshift(`Azi · Trimis WhatsApp: ${tpl.label}`);
+          saveState();
+          renderTripsView();
+        }
+      }
       showToast('Copiat pentru WhatsApp.');
     } catch {
       showToast('Selectați textul manual.');
@@ -1204,6 +1220,20 @@ function openDocModal() {
   modalEl.hidden = false;
 }
 
+function openEmailParseModal() {
+  activeModal = { type: 'email-parse' };
+  modalTitleEl.textContent = 'Convertește Email în Scadență / Sarcină';
+  modalFieldsEl.innerHTML = `
+    <p class="muted small">Lipește textul unui email de la hotel/furnizor. Data (DD.MM.YYYY / YYYY-MM-DD) și suma (EUR/RON) sunt extrase automat.</p>
+    <div class="field"><label for="ep-text">Text email *</label><textarea id="ep-text" name="rawText" rows="4" class="input" required placeholder="ex. Vă rugăm să trimiteți Rooming List final până la 25.11.2026 și avansul de 1200 EUR."></textarea></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="ep-target">Salvează ca</label><select id="ep-target" name="targetType" class="input"><option value="deadline">Scadență furnizor</option><option value="task">Sarcină generală</option></select></div>
+      <div class="field"><label for="ep-trip">Sejur</label><select id="ep-trip" name="tripId" class="input">${state.trips.map((t) => `<option value="${esc(t.id)}" ${t.id === state.selectedTripId ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</select></div>
+    </div>
+  `;
+  modalEl.hidden = false;
+}
+
 function openTaskModal() {
   activeModal = { type: 'task' };
   modalTitleEl.textContent = 'Sarcină nouă';
@@ -1336,6 +1366,32 @@ modalFormEl?.addEventListener('submit', (e) => {
       updatedAt: new Date().toISOString().slice(0, 10),
     });
     showToast('Document adăugat.');
+  } else if (activeModal.type === 'email-parse') {
+    if (!data.rawText?.trim()) return showError('Lipește textul emailului.');
+    const extracted = parseInboundEmailText(data.rawText);
+    if (data.targetType === 'deadline') {
+      state.supplierDeadlines = state.supplierDeadlines || [];
+      state.supplierDeadlines.unshift({
+        id: uid('sd'),
+        tripId: data.tripId || state.selectedTripId,
+        supplierName: extracted.title,
+        kind: extracted.amount > 0 ? 'Avans furnizor' : 'Rooming cut-off',
+        dueDate: extracted.dueDate,
+        amount: extracted.amount,
+        currency: extracted.currency,
+        done: false,
+      });
+      showToast('Scadență furnizor extrasă din email.');
+    } else {
+      state.tasks.unshift({
+        id: uid('tsk'),
+        title: `${extracted.title}${extracted.amount ? ` (${extracted.amount} ${extracted.currency})` : ''}`,
+        dueDate: extracted.dueDate,
+        done: false,
+        tripId: data.tripId || state.selectedTripId,
+      });
+      showToast('Sarcină extrasă din email.');
+    }
   } else if (activeModal.type === 'task') {
     if (!data.title?.trim()) return showError('Titlul este obligatoriu.');
     state.tasks.unshift({ id: uid('tsk'), title: data.title.trim(), dueDate: data.dueDate, done: false, tripId: data.tripId });
@@ -1740,6 +1796,18 @@ function renderPublicApplyPage(tripId) {
     });
     state.selectedTripId = trip.id;
     saveState();
+    fetch('/api/public/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tripId: trip.id,
+        name: data.name.trim(),
+        pax: Number(data.pax || 1),
+        budgetPerPax: Number(data.budgetPerPax || 0),
+        roomType: data.roomType || 'Double',
+        answers,
+      }),
+    }).catch(() => {});
     document.getElementById('public-apply-result').innerHTML = `
       <div class="feedback-msg is-ok">
         Aplicare înregistrată! Status: <strong>${esc(qual.status)}</strong>.

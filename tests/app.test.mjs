@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
 import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
-import { renderMessageTemplate } from '../public/template-utils.js';
+import { renderMessageTemplate, parseInboundEmailText } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
 test('parseCsvText handles UTF-8 BOM, semicolons, and quoted commas', () => {
@@ -219,4 +219,48 @@ test('buildPublicTripPostingView strips internal costs and autoQualifyApplicatio
 
   const qFail = autoQualifyApplication(trip, { pax: 1, budgetPerPax: 1850, answers: { q1: 'Nu' } }, 2);
   assert.equal(qFail.status, 'Necesită verificare');
+});
+
+test('parseInboundEmailText extracts DD.MM.YYYY date and currency amount from supplier email', () => {
+  const res = parseInboundEmailText('Basecamp Hotel: Vă rugăm să achitați avansul de 1800 EUR până la 25.11.2026.');
+  assert.equal(res.dueDate, '2026-11-25');
+  assert.equal(res.amount, 1800);
+  assert.equal(res.currency, 'EUR');
+});
+
+test('Server /api/public/trips strips internal costs and /api/public/apply auto-qualifies applicant', async () => {
+  const initialState = {
+    trips: [
+      {
+        id: 'trip-1',
+        title: 'Svalbard',
+        destination: 'Longyearbyen',
+        dates: '2027-03-14',
+        maxPax: 6,
+        costPerPax: 1400,
+        pricePerPax: 1850,
+        fixedCost: 400,
+        currency: 'EUR',
+        postingStatus: 'Publicat',
+      },
+    ],
+    customers: [],
+    applications: [],
+  };
+  const server = createAppServer({ initialState, inMemoryOnly: true });
+
+  const pubRes = await invokeHandler(server, 'GET', '/api/public/trips');
+  assert.equal(pubRes.status, 200);
+  const pubData = pubRes.json();
+  assert.equal(pubData.trips.length, 1);
+  assert.equal('costPerPax' in pubData.trips[0], false);
+
+  const applyRes = await invokeHandler(server, 'POST', '/api/public/apply', {
+    tripId: 'trip-1',
+    name: 'Test Traveler',
+    pax: 2,
+    budgetPerPax: 1900,
+  });
+  assert.equal(applyRes.status, 200);
+  assert.equal(applyRes.json().qualificationStatus, 'Calificat automat');
 });

@@ -3,9 +3,15 @@ import fs from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  computeMasterTripMetrics,
+  autoQualifyApplication,
+  buildPublicTripPostingView,
+} from './public/trip-utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const DEFAULT_STORE_PATH = path.join(__dirname, '.local-store.json');
 
 /**
  * Load key=value pairs from .env if present, without overriding existing env vars.
@@ -188,7 +194,31 @@ async function callGeminiOfferDraft(brief) {
   };
 }
 
-export function createAppServer() {
+export function createAppServer(options = {}) {
+  const storePath = options.storePath ?? DEFAULT_STORE_PATH;
+  let memoryStore = options.initialState ?? null;
+
+  async function readStore() {
+    if (memoryStore) return memoryStore;
+    try {
+      const raw = await fs.readFile(storePath, 'utf8');
+      memoryStore = JSON.parse(raw);
+      return memoryStore;
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeStore(nextState) {
+    memoryStore = nextState;
+    if (options.inMemoryOnly) return;
+    try {
+      await fs.writeFile(storePath, JSON.stringify(nextState, null, 2), 'utf8');
+    } catch {
+      // Ignore write errors in read-only environments
+    }
+  }
+
   return http.createServer(async (req, res) => {
     const reqUrl = new URL(req.url || '/', 'http://localhost');
     const pathname = reqUrl.pathname;
@@ -199,6 +229,88 @@ export function createAppServer() {
         mode: 'local-prototype',
         geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
       });
+    }
+
+    if (req.method === 'GET' && pathname === '/api/state') {
+      const state = await readStore();
+      return sendJson(res, 200, { state });
+    }
+
+    if (req.method === 'PUT' && pathname === '/api/state') {
+      try {
+        const body = await readJsonBody(req, 262_144);
+        if (!body || !Array.isArray(body.trips)) {
+          return sendJson(res, 400, { error: 'State invalid.' });
+        }
+        await writeStore(body);
+        return sendJson(res, 200, { ok: true });
+      } catch {
+        return sendJson(res, 400, { error: 'Cerere JSON invalidă.' });
+      }
+    }
+
+    if (req.method === 'GET' && pathname === '/api/public/trips') {
+      const state = await readStore();
+      const trips = Array.isArray(state?.trips) ? state.trips : [];
+      const apps = Array.isArray(state?.applications) ? state.applications : [];
+      const publicTrips = trips
+        .map((t) => buildPublicTripPostingView(t, apps))
+        .filter((p) => p.postingStatus === 'Publicat' || p.postingStatus === 'Locuri epuizate');
+      return sendJson(res, 200, { trips: publicTrips });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/public/apply') {
+      try {
+        const body = await readJsonBody(req);
+        const state = await readStore();
+        if (!state || !Array.isArray(state.trips)) {
+          return sendJson(res, 404, { error: 'Sejurul nu a fost găsit.' });
+        }
+        const trip = state.trips.find((t) => t.id === body.tripId) || state.trips[0];
+        if (!trip) {
+          return sendJson(res, 404, { error: 'Sejurul nu există.' });
+        }
+        const name = String(body.name || '').trim().slice(0, 80);
+        if (!name) {
+          return sendJson(res, 400, { error: 'Numele este obligatoriu.' });
+        }
+        const pax = Math.max(1, Number(body.pax || 1));
+        const budgetPerPax = Math.max(0, Number(body.budgetPerPax || 0));
+        const roomType = String(body.roomType || 'Double');
+        const answers = body.answers && typeof body.answers === 'object' ? body.answers : {};
+
+        const metrics = computeMasterTripMetrics(trip, state.applications || []);
+        const qual = autoQualifyApplication(trip, { pax, budgetPerPax, answers }, metrics.confirmedPax);
+
+        const custId = `cust-${Date.now().toString(36)}`;
+        state.customers = Array.isArray(state.customers) ? state.customers : [];
+        state.customers.unshift({ id: custId, name, channel: 'Board Public', note: 'Aplicat online' });
+
+        state.applications = Array.isArray(state.applications) ? state.applications : [];
+        state.applications.unshift({
+          id: `app-${Date.now().toString(36)}`,
+          tripId: trip.id,
+          customerId: custId,
+          pax,
+          budgetPerPax,
+          depositPaid: false,
+          roomType,
+          roomCode: 'Neasignat',
+          stage: qual.suggestedStage,
+          qualificationStatus: qual.status,
+          qualificationReasons: qual.reasons,
+          appliedAt: new Date().toISOString().slice(0, 10),
+          notes: [`Azi · Aplicat via Board Public (${qual.status})`],
+        });
+        await writeStore(state);
+        return sendJson(res, 200, {
+          ok: true,
+          qualificationStatus: qual.status,
+          suggestedStage: qual.suggestedStage,
+        });
+      } catch {
+        return sendJson(res, 400, { error: 'Date invalide pentru aplicare.' });
+      }
     }
 
     if (req.method === 'POST' && pathname === '/api/offer-draft') {
