@@ -98,19 +98,23 @@ export function autoQualifyApplication(trip, application, currentConfirmedPax = 
 }
 
 /**
- * Grupează aplicanții unui sejur pe camere și detectează camerele Twin partajabile neîmperecheate.
+ * Grupează aplicanții unui sejur pe camere (opțional pentru o cazare specifică `stay`)
+ * și verifică inventarul de camere Double/Twin vs Single.
  */
-export function analyzeRooming(tripApplications = [], customers = []) {
+export function analyzeRooming(tripApplications = [], customers = [], stay = null) {
   const custMap = new Map(customers.map((c) => [c.id, c.name]));
   const active = tripApplications.filter((a) => a.stage !== 'Respins');
   const roomMap = new Map();
 
   for (const app of active) {
-    const code = (app.roomCode || '').trim() || 'Neasignat';
+    const staySlot = stay?.id && app.roomByStay?.[stay.id] ? app.roomByStay[stay.id] : app;
+    const code = (staySlot.roomCode || '').trim() || 'Neasignat';
+    const rType = staySlot.roomType || app.roomType || 'Double';
+
     if (!roomMap.has(code)) {
       roomMap.set(code, {
         roomCode: code,
-        roomType: app.roomType || 'Double',
+        roomType: rType,
         pax: 0,
         guests: [],
       });
@@ -118,7 +122,7 @@ export function analyzeRooming(tripApplications = [], customers = []) {
     const entry = roomMap.get(code);
     entry.pax += Number(app.pax || 1);
     entry.guests.push(custMap.get(app.customerId) || 'Client');
-    if (app.roomType) entry.roomType = app.roomType;
+    entry.roomType = rType;
   }
 
   const rooms = [...roomMap.values()].map((r) => {
@@ -135,19 +139,42 @@ export function analyzeRooming(tripApplications = [], customers = []) {
     return { ...r, alert };
   });
 
+  const assigned = rooms.filter((r) => r.roomCode !== 'Neasignat');
+  const usedSingle = assigned.filter((r) => r.roomType === 'Single').length;
+  const usedDouble = assigned.filter((r) => r.roomType !== 'Single').length;
+  const maxSingle = stay ? Number(stay.singleRooms ?? 0) : null;
+  const maxDouble = stay ? Number(stay.doubleRooms ?? 0) : null;
+
+  const inventoryWarnings = [];
+  if (maxDouble !== null && usedDouble > maxDouble) {
+    inventoryWarnings.push(`Depășire Double/Twin: ${usedDouble}/${maxDouble}`);
+  }
+  if (maxSingle !== null && usedSingle > maxSingle) {
+    inventoryWarnings.push(`Depășire Single: ${usedSingle}/${maxSingle}`);
+  }
+
   const unpairedShareCount = rooms.filter((r) => r.alert === 'Caută coleg(ă)').length;
-  return { rooms, unpairedShareCount };
+  return {
+    rooms,
+    unpairedShareCount,
+    usedDouble,
+    usedSingle,
+    maxDouble,
+    maxSingle,
+    inventoryWarnings,
+  };
 }
 
 /**
  * Construiește rândurile pentru exportul Rooming List către hotel/furnizor,
  * eliminând complet prețurile, costurile și marja agenției.
  */
-export function buildHotelRoomingRows(tripApplications = [], customers = []) {
-  const { rooms } = analyzeRooming(tripApplications, customers);
+export function buildHotelRoomingRows(tripApplications = [], customers = [], stay = null) {
+  const { rooms } = analyzeRooming(tripApplications, customers, stay);
   return rooms
     .filter((r) => r.roomCode !== 'Neasignat')
     .map((r) => ({
+      cazare: stay ? `${stay.name} (${stay.nights}n)` : 'Sejur',
       camera: r.roomCode,
       tip_camera: r.roomType,
       oaspeti: r.guests.join(' + '),

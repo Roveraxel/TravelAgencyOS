@@ -169,3 +169,17 @@ test('analyzeRooming detects unpaired Twin (Partajabil) and buildHotelRoomingRow
   assert.equal(hotelRows[0].oaspeti, 'Solo A + Solo B');
   assert.equal('pricePerPax' in hotelRows[0], false);
 });
+
+test('analyzeRooming tracks per-stay Double/Single inventory limits', () => {
+  const stay = { id: 's1', name: 'Ha Long Cruise', nights: 2, doubleRooms: 1, singleRooms: 0 };
+  const customers = [{ id: 'c1', name: 'A' }, { id: 'c2', name: 'B' }];
+  const apps = [
+    { customerId: 'c1', pax: 2, roomType: 'Double', roomCode: 'Cam. 1', stage: 'Confirmat' },
+    { customerId: 'c2', pax: 1, roomType: 'Single', roomCode: 'Cam. 2', stage: 'Confirmat' },
+  ];
+  const res = analyzeRooming(apps, customers, stay);
+  assert.equal(res.usedDouble, 1);
+  assert.equal(res.usedSingle, 1);
+  assert.equal(res.inventoryWarnings.length, 1);
+  assert.ok(res.inventoryWarnings[0].includes('Single'));
+});

@@ -19,6 +19,7 @@ const STORAGE_KEY = 'travelagencyos_garlic_v2';
 function createSeedState() {
   return {
     selectedTripId: 'trip-1',
+    selectedStayId: 'stay-1',
     selectedAppId: 'app-1',
     activeCenterTab: 'applicants',
     trips: [
@@ -34,6 +35,9 @@ function createSeedState() {
         currency: 'EUR',
         style: 'Expediție grup mic, snowmobile, observare natură',
         notes: 'Include ghid local și transfer aeroport. Echipament polar [DE CONFIRMAT].',
+        stays: [
+          { id: 'stay-1', name: 'Basecamp Longyearbyen', nights: 7, doubleRooms: 4, singleRooms: 2 },
+        ],
       },
       {
         id: 'trip-2',
@@ -47,12 +51,15 @@ function createSeedState() {
         currency: 'RON',
         style: 'Drumeții ușoare, pensiuni locale, cină tradițională',
         notes: 'Plecări din Timișoara / Cluj.',
+        stays: [
+          { id: 'stay-2', name: 'Pensiunea Breb', nights: 3, doubleRooms: 5, singleRooms: 2 },
+        ],
       },
       {
         id: 'trip-3',
-        title: 'Vietnam & Cambodgia',
+        title: 'Vietnam & Cambodgia (2 săpt.)',
         destination: 'Hanoi · Ha Long · Siem Reap',
-        dates: '2027-10-10 → 2027-10-22',
+        dates: '2027-10-10 → 2027-10-24',
         maxPax: 12,
         costPerPax: 1680,
         pricePerPax: 2150,
@@ -60,6 +67,11 @@ function createSeedState() {
         currency: 'EUR',
         style: 'Grup de prieteni, street food, temple Angkor',
         notes: 'Zbor internațional [DE CONFIRMAT].',
+        stays: [
+          { id: 'stay-3', name: 'Hanoi Boutique', nights: 4, doubleRooms: 5, singleRooms: 2 },
+          { id: 'stay-4', name: 'Ha Long Cruise', nights: 2, doubleRooms: 5, singleRooms: 1 },
+          { id: 'stay-5', name: 'Siem Reap Hotel', nights: 5, doubleRooms: 5, singleRooms: 2 },
+        ],
       },
     ],
     customers: [
@@ -150,6 +162,7 @@ function loadState() {
     const parsed = JSON.parse(raw);
     return {
       selectedTripId: parsed.selectedTripId || parsed.trips?.[0]?.id || '',
+      selectedStayId: parsed.selectedStayId || '',
       selectedAppId: parsed.selectedAppId || '',
       activeCenterTab: parsed.activeCenterTab || 'applicants',
       trips: Array.isArray(parsed.trips) ? parsed.trips : [],
@@ -349,21 +362,52 @@ function renderMasterTripCenter(trip) {
         </div>
       </div>`;
   } else if (state.activeCenterTab === 'rooms') {
-    const roomSummary = analyzeRooming(tripApps, state.customers);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
+      ? trip.stays
+      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
+    let activeStay = stays.find((s) => s.id === state.selectedStayId);
+    if (!activeStay) {
+      activeStay = stays[0];
+      state.selectedStayId = activeStay.id;
+    }
+
+    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
+    const isFirstStay = stays[0].id === activeStay.id;
+
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <div>
-            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
-            <p class="muted small">${roomSummary.rooms.length} camere · ${
-              roomSummary.unpairedShareCount > 0
-                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
-                : 'Toate camerele Twin sunt împerecheate'
-            }</p>
+          <div class="header-actions">
+            ${stays
+              .map(
+                (s) =>
+                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
+              )
+              .join('')}
+            <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          <div class="header-actions">
+            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
+            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          </div>
         </div>
+
+        <div class="metric-strip" style="margin-bottom:12px">
+          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
+          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
+          ${
+            roomSummary.unpairedShareCount > 0
+              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
+              : ''
+          }
+          ${
+            roomSummary.inventoryWarnings.length > 0
+              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
+              : ''
+          }
+        </div>
+
         <div class="table-wrap">
           <table class="data-table">
             <thead>
@@ -382,18 +426,21 @@ function renderMasterTripCenter(trip) {
                       .filter((a) => a.stage !== 'Respins')
                       .map((a) => {
                         const cust = getCustomer(a.customerId);
+                        const slot = a.roomByStay?.[activeStay.id] || a;
+                        const rType = slot.roomType || a.roomType || 'Double';
+                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
                         return `
                         <tr>
                           <td><strong>${esc(cust.name)}</strong></td>
                           <td>${a.pax}</td>
                           <td>
                             <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
                             </select>
                           </td>
                           <td>
                             <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
                             </select>
                           </td>
                         </tr>`;
@@ -405,7 +452,7 @@ function renderMasterTripCenter(trip) {
         </div>
         ${
           roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
                 .filter((r) => r.alert)
                 .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
                 .join('')}</div>`
@@ -617,10 +664,32 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  const stayBtn = e.target.closest('[data-select-stay]');
+  if (stayBtn) {
+    state.selectedStayId = stayBtn.dataset.selectStay;
+    saveState();
+    renderTripsView();
+    return;
+  }
+
   const btn = e.target.closest('button');
   if (!btn) return;
 
   if (btn.id === 'new-trip-btn') openTripModal();
+  else if (btn.id === 'add-stay-btn') openStayModal();
+  else if (btn.id === 'copy-stay1-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    const stay1 = trip?.stays?.[0];
+    if (!trip || !stay1 || !state.selectedStayId) return;
+    for (const app of state.applications.filter((a) => a.tripId === trip.id)) {
+      const src = app.roomByStay?.[stay1.id] || { roomType: app.roomType || 'Double', roomCode: app.roomCode || 'Neasignat' };
+      app.roomByStay = app.roomByStay || {};
+      app.roomByStay[state.selectedStayId] = { ...src };
+    }
+    saveState();
+    renderTripsView();
+    showToast('Alocare copiată din prima cazare.');
+  }
   else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (trip) openTripModal(trip);
@@ -692,10 +761,11 @@ document.addEventListener('click', async (e) => {
   } else if (btn.id === 'export-rooming-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (!trip) return;
+    const activeStay = trip.stays?.find((s) => s.id === state.selectedStayId) || trip.stays?.[0] || null;
     const tripApps = state.applications.filter((a) => a.tripId === trip.id);
-    const rows = buildHotelRoomingRows(tripApps, state.customers);
+    const rows = buildHotelRoomingRows(tripApps, state.customers, activeStay);
     if (rows.length === 0) return showToast('Alocați cel puțin o cameră înainte de export.');
-    const csv = buildCsv(['camera', 'tip_camera', 'oaspeti', 'pax', 'observatii'], rows);
+    const csv = buildCsv(['cazare', 'camera', 'tip_camera', 'oaspeti', 'pax', 'observatii'], rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -750,6 +820,11 @@ document.addEventListener('change', (e) => {
   } else if (e.target.matches('select[data-room-type]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.roomType);
     if (app) {
+      if (state.selectedStayId) {
+        app.roomByStay = app.roomByStay || {};
+        const prev = app.roomByStay[state.selectedStayId] || { roomCode: app.roomCode || 'Neasignat' };
+        app.roomByStay[state.selectedStayId] = { ...prev, roomType: e.target.value };
+      }
       app.roomType = e.target.value;
       saveState();
       renderTripsView();
@@ -757,6 +832,11 @@ document.addEventListener('change', (e) => {
   } else if (e.target.matches('select[data-room-code]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.roomCode);
     if (app) {
+      if (state.selectedStayId) {
+        app.roomByStay = app.roomByStay || {};
+        const prev = app.roomByStay[state.selectedStayId] || { roomType: app.roomType || 'Double' };
+        app.roomByStay[state.selectedStayId] = { ...prev, roomCode: e.target.value };
+      }
       app.roomCode = e.target.value;
       saveState();
       renderTripsView();
@@ -855,6 +935,20 @@ function openApplyModal() {
   modalEl.hidden = false;
 }
 
+function openStayModal() {
+  activeModal = { type: 'stay', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Cazare nouă în circuit';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="s-name">Hotel / Cazare *</label><input id="s-name" name="name" class="input" required placeholder="ex. Hoi An Resort"></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="s-nights">Nopți</label><input id="s-nights" name="nights" type="number" min="1" class="input" value="3"></div>
+      <div class="field"><label for="s-double">Camere Double/Twin</label><input id="s-double" name="doubleRooms" type="number" min="0" class="input" value="5"></div>
+    </div>
+    <div class="field"><label for="s-single">Camere Single</label><input id="s-single" name="singleRooms" type="number" min="0" class="input" value="2"></div>
+  `;
+  modalEl.hidden = false;
+}
+
 function openDocModal() {
   activeModal = { type: 'doc', tripId: state.selectedTripId };
   modalTitleEl.textContent = 'Document nou pentru sejur';
@@ -904,21 +998,52 @@ modalFormEl.addEventListener('submit', (e) => {
     if (activeModal.id) {
       Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
     } else if (state.activeCenterTab === 'rooms') {
-    const roomSummary = analyzeRooming(tripApps, state.customers);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
+      ? trip.stays
+      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
+    let activeStay = stays.find((s) => s.id === state.selectedStayId);
+    if (!activeStay) {
+      activeStay = stays[0];
+      state.selectedStayId = activeStay.id;
+    }
+
+    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
+    const isFirstStay = stays[0].id === activeStay.id;
+
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <div>
-            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
-            <p class="muted small">${roomSummary.rooms.length} camere · ${
-              roomSummary.unpairedShareCount > 0
-                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
-                : 'Toate camerele Twin sunt împerecheate'
-            }</p>
+          <div class="header-actions">
+            ${stays
+              .map(
+                (s) =>
+                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
+              )
+              .join('')}
+            <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          <div class="header-actions">
+            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
+            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          </div>
         </div>
+
+        <div class="metric-strip" style="margin-bottom:12px">
+          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
+          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
+          ${
+            roomSummary.unpairedShareCount > 0
+              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
+              : ''
+          }
+          ${
+            roomSummary.inventoryWarnings.length > 0
+              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
+              : ''
+          }
+        </div>
+
         <div class="table-wrap">
           <table class="data-table">
             <thead>
@@ -937,18 +1062,21 @@ modalFormEl.addEventListener('submit', (e) => {
                       .filter((a) => a.stage !== 'Respins')
                       .map((a) => {
                         const cust = getCustomer(a.customerId);
+                        const slot = a.roomByStay?.[activeStay.id] || a;
+                        const rType = slot.roomType || a.roomType || 'Double';
+                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
                         return `
                         <tr>
                           <td><strong>${esc(cust.name)}</strong></td>
                           <td>${a.pax}</td>
                           <td>
                             <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
                             </select>
                           </td>
                           <td>
                             <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
                             </select>
                           </td>
                         </tr>`;
@@ -960,7 +1088,7 @@ modalFormEl.addEventListener('submit', (e) => {
         </div>
         ${
           roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
                 .filter((r) => r.alert)
                 .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
                 .join('')}</div>`
@@ -1033,6 +1161,22 @@ modalFormEl.addEventListener('submit', (e) => {
     });
     state.selectedAppId = appId;
     showToast(`Aplicant adăugat: ${qual.status}`);
+  } else if (activeModal.type === 'stay') {
+    if (!data.name?.trim()) return showError('Numele cazării este obligatoriu.');
+    const trip = state.trips.find((t) => t.id === activeModal.tripId);
+    if (trip) {
+      trip.stays = trip.stays || [];
+      const stayId = uid('stay');
+      trip.stays.push({
+        id: stayId,
+        name: data.name.trim(),
+        nights: Number(data.nights || 1),
+        doubleRooms: Number(data.doubleRooms || 0),
+        singleRooms: Number(data.singleRooms || 0),
+      });
+      state.selectedStayId = stayId;
+      showToast('Cazare adăugată.');
+    }
   } else if (activeModal.type === 'doc') {
     if (!data.title?.trim()) return showError('Numele documentului este obligatoriu.');
     state.documents = state.documents || [];
@@ -1085,21 +1229,52 @@ function exportDatasetCsv(kind) {
       etapa: a.stage,
     }));
   } else if (state.activeCenterTab === 'rooms') {
-    const roomSummary = analyzeRooming(tripApps, state.customers);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    const stays = Array.isArray(trip.stays) && trip.stays.length > 0
+      ? trip.stays
+      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
+    let activeStay = stays.find((s) => s.id === state.selectedStayId);
+    if (!activeStay) {
+      activeStay = stays[0];
+      state.selectedStayId = activeStay.id;
+    }
+
+    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
+    const isFirstStay = stays[0].id === activeStay.id;
+
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <div>
-            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
-            <p class="muted small">${roomSummary.rooms.length} camere · ${
-              roomSummary.unpairedShareCount > 0
-                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
-                : 'Toate camerele Twin sunt împerecheate'
-            }</p>
+          <div class="header-actions">
+            ${stays
+              .map(
+                (s) =>
+                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
+              )
+              .join('')}
+            <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          <div class="header-actions">
+            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
+            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+          </div>
         </div>
+
+        <div class="metric-strip" style="margin-bottom:12px">
+          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
+          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
+          ${
+            roomSummary.unpairedShareCount > 0
+              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
+              : ''
+          }
+          ${
+            roomSummary.inventoryWarnings.length > 0
+              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
+              : ''
+          }
+        </div>
+
         <div class="table-wrap">
           <table class="data-table">
             <thead>
@@ -1118,18 +1293,21 @@ function exportDatasetCsv(kind) {
                       .filter((a) => a.stage !== 'Respins')
                       .map((a) => {
                         const cust = getCustomer(a.customerId);
+                        const slot = a.roomByStay?.[activeStay.id] || a;
+                        const rType = slot.roomType || a.roomType || 'Double';
+                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
                         return `
                         <tr>
                           <td><strong>${esc(cust.name)}</strong></td>
                           <td>${a.pax}</td>
                           <td>
                             <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
                             </select>
                           </td>
                           <td>
                             <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
                             </select>
                           </td>
                         </tr>`;
@@ -1141,7 +1319,7 @@ function exportDatasetCsv(kind) {
         </div>
         ${
           roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
                 .filter((r) => r.alert)
                 .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
                 .join('')}</div>`
