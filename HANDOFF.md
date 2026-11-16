@@ -21,7 +21,8 @@
 
 ## Next Priorities (for Claude or Antigravity)
 
-1. **Manual browser QA & polish:** Start `npm start`, test all modals, mobile viewport, and Print-to-PDF layout in a real browser.
-2. **Agency discovery interviews:** Use `DISCOVERY.md` and `COMPLIANCE.md` alongside agency interviews before locking the paid-pilot scope.
-3. **Minimal authenticated backend proposal (before any live pilot):** Design a low-cost persistence + auth layer (e.g. SQLite/Litestream or Postgres/Supabase with EU region) and privacy/GDPR deletion/export workflow — do not implement without user sign-off.
-4. **Compliance gate:** Have a Romanian accountant/privacy specialist verify current ANAF/e-Factura and travel-agency VAT margin rules before adding any invoicing or fiscal features.
+1. **Trip Posting & Custom Qualification Questions (`PRD.md` §1):** Upgrade `/?apply=` into full `TripPosting` records (`Draft` / `Publicat` / `Locuri epuizate`) with custom per-trip qualification questions and an agency public trip board.
+2. **Supplier Cut-Offs & Payment Tranches (`PRD.md` §3):** Add hotel/airline release dates and deposit tranches per Master Trip.
+3. **Agency Discovery Interviews:** Validate the GarlicOS Trip-First ATS + Rooming + Excel sync with 3–5 Romanian agencies (`DISCOVERY.md`) before committing to Phase 1 hosting.
+4. **Phase 1 Authenticated Backend (`ARCHITECTURE.md` §2–4):** Implement SQLite + Litestream (or EU Postgres), auth/tenancy, GDPR export/delete, and Gmail/Sheets sync only after discovery + privacy review.
+5. **Compliance Gate (`COMPLIANCE.md`):** Have a Romanian accountant verify ANAF/e-Factura and travel-agency VAT margin rules before adding invoicing.
