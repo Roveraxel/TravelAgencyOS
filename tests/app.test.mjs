@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
+import { getDueStatus, getDueLabel } from '../public/date-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
 test('parseCsvText handles UTF-8 BOM, semicolons, and quoted commas', () => {
@@ -102,4 +103,16 @@ test('HTTP server serves /api/health and handles missing GEMINI_API_KEY graceful
   } finally {
     if (prevKey !== undefined) process.env.GEMINI_API_KEY = prevKey;
   }
+});
+
+test('getDueStatus and getDueLabel classify overdue, today, soon, and ok dates', () => {
+  const today = '2026-11-16';
+  assert.equal(getDueStatus('2026-11-15', today), 'overdue');
+  assert.equal(getDueLabel('overdue'), 'Restant');
+  assert.equal(getDueStatus('2026-11-16', today), 'today');
+  assert.equal(getDueLabel('today'), 'Azi');
+  assert.equal(getDueStatus('2026-11-19', today), 'soon');
+  assert.equal(getDueLabel('soon'), 'În curând');
+  assert.equal(getDueStatus('2026-11-25', today), 'ok');
+  assert.equal(getDueStatus('', today), 'none');
 });

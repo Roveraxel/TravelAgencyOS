@@ -304,6 +304,7 @@
             <div class="card-header no-print">
               <h2>Previzualizare &amp; Editare schiță</h2>
               <div class="header-actions">
+                <button type="button" id="copy-offer-btn" class="btn btn-secondary btn-sm">Copiază pentru WhatsApp</button>
                 <button type="button" id="save-offer-btn" class="btn btn-secondary btn-sm">Salvează schița</button>
                 <button type="button" id="print-offer-btn" class="btn btn-primary btn-sm">Print / Salvează PDF</button>
               </div>
@@ -339,12 +340,18 @@
 
         <div class="two-col">
           <div class="card">
-            <h2>Export CSV</h2>
-            <p class="muted small">Include antete clare și monede explicite.</p>
+            <h2>Export CSV &amp; Backup local JSON</h2>
+            <p class="muted small">Exportați tabelele în CSV (UTF-8 BOM) sau salvați un backup complet JSON al spațiului local.</p>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" data-export-csv="enquiries">Exportă Cereri (.csv)</button>
               <button type="button" class="btn btn-secondary" data-export-csv="bookings">Exportă Rezervări (.csv)</button>
               <button type="button" class="btn btn-secondary" data-export-csv="customers">Exportă Clienți (.csv)</button>
+            </div>
+            <hr class="divider">
+            <div class="form-actions">
+              <button type="button" id="backup-json-btn" class="btn btn-secondary btn-sm">Descarcă backup JSON</button>
+              <label class="btn btn-ghost btn-sm" for="restore-json-input">Restaurează din JSON</label>
+              <input id="restore-json-input" type="file" accept=".json,application/json" hidden>
             </div>
           </div>
 
@@ -416,6 +423,8 @@
       </form>
     </div>
   </div>
+
+  <div id="toast-region" class="toast-region no-print" aria-live="polite"></div>
 
   <script type="module" src="/app.js"></script>
 </body>

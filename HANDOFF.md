@@ -11,15 +11,16 @@
   - In-memory rate limit (10 req/min).
   - Strict input minimization (`sanitizeOfferBrief` strips unexpected/PII fields).
 - Responsive Romanian-first UI (`public/index.html`, `public/styles.css`, `public/app.js`) with:
-  - Explicit local-only prototype warning banner.
+  - Explicit local-only prototype warning banner and toast feedback (`#toast-region`).
   - Dashboard KPIs (active enquiries, active bookings, totals by explicit currency, open tasks).
-  - Enquiries CRUD + **Convert to Booking** (`Convertește`) + **+ Sarcină** + **Schiță** prefill.
-  - Bookings CRUD + **+ Sarcină** linked to booking.
-  - Synthetic demo Customers CRUD.
+  - Enquiries CRUD + inline status quick-change + inline rapid customer creation + **Convert to Booking** (`Convertește`) + **+ Sarcină** + **Schiță** prefill + delete.
+  - Bookings CRUD + inline rapid customer creation + **+ Sarcină** linked to booking + delete.
+  - Synthetic demo Customers CRUD + delete protection when linked to enquiries/bookings.
   - Tasks & follow-up checklist linked to enquiries/bookings.
-  - Offer Drafts: anonymized brief form, local template generator fallback, optional Gemini AI draft, save/edit/delete, and clean `@media print` / PDF view.
-  - CSV Export (UTF-8 BOM for Enquiries, Bookings, Customers) and CSV Import (`public/csv-utils.js`) with preview table, row-level validation, and duplicate handling (`skip` / `overwrite` / `create`).
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (5/5 passing offline).
+  - Overdue / Today / Soon due-date badges (`public/date-utils.js`) on follow-ups, booking due dates, and tasks.
+  - Offer Drafts: anonymized brief form, local template generator fallback, optional Gemini AI draft, save/edit/delete, **Copy for WhatsApp**, and clean `@media print` / PDF view.
+  - CSV Export (UTF-8 BOM for Enquiries, Bookings, Customers), CSV Import (`public/csv-utils.js`) with preview table, row-level validation, and duplicate handling (`skip` / `overwrite` / `create`), plus full local JSON Backup & Restore.
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (6/6 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

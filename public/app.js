@@ -5,6 +5,7 @@ import {
   VALID_CURRENCIES,
   ENQUIRY_STATUSES,
 } from '/csv-utils.js';
+import { getDueStatus, getDueLabel } from '/date-utils.js';
 
 const STORAGE_KEY = 'travelagencyos_prototype_v1';
 
@@ -167,6 +168,29 @@ function statusBadgeClass(status) {
   return 'badge';
 }
 
+function dueBadgeHtml(isoDate) {
+  const status = getDueStatus(isoDate);
+  const label = getDueLabel(status);
+  if (!label) return '';
+  const cls =
+    status === 'overdue'
+      ? 'badge badge-danger'
+      : status === 'today'
+      ? 'badge badge-warning'
+      : 'badge';
+  return ` <span class="${cls}">${esc(label)}</span>`;
+}
+
+function showToast(message) {
+  const region = document.getElementById('toast-region');
+  if (!region) return;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = message;
+  region.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
 /* ---------------- NAVIGATION ---------------- */
 
 function switchView(viewName) {
@@ -309,8 +333,14 @@ function renderEnquiries() {
       </td>
       <td>${e.budget ? formatMoney(e.budget, e.currency) : '<span class="muted">-</span>'}</td>
       <td>${esc(e.source || '-')}</td>
-      <td><span class="${statusBadgeClass(e.status)}">${esc(e.status)}</span></td>
-      <td>${esc(e.followUpDate || '-')}</td>
+      <td>
+        <select class="inline-select" data-quick-enquiry-status="${esc(e.id)}" aria-label="Status cerere ${esc(e.destination)}">
+          ${ENQUIRY_STATUSES.map(
+            (s) => `<option value="${s}" ${e.status === s ? 'selected' : ''}>${s}</option>`
+          ).join('')}
+        </select>
+      </td>
+      <td>${esc(e.followUpDate || '-')}${dueBadgeHtml(e.followUpDate)}</td>
       <td>
         <div class="header-actions">
           <button type="button" class="btn btn-secondary btn-sm" data-edit-enquiry="${esc(e.id)}">Editează</button>
@@ -321,6 +351,7 @@ function renderEnquiries() {
           }
           <button type="button" class="btn btn-ghost btn-sm" data-task-for-enquiry="${esc(e.id)}">+ Sarcină</button>
           <button type="button" class="btn btn-ghost btn-sm" data-offer-from-enquiry="${esc(e.id)}">Schiță</button>
+          <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-enquiry="${esc(e.id)}">Șterge</button>
         </div>
       </td>
     </tr>`
@@ -360,12 +391,13 @@ function renderBookings() {
       </td>
       <td>${esc(b.supplier || '-')}</td>
       <td><strong>${formatMoney(b.amount, b.currency)}</strong></td>
-      <td>${esc(b.dueDate || '-')}</td>
+      <td>${esc(b.dueDate || '-')}${dueBadgeHtml(b.dueDate)}</td>
       <td><span class="${statusBadgeClass(b.status)}">${esc(b.status)}</span></td>
       <td>
         <div class="header-actions">
           <button type="button" class="btn btn-secondary btn-sm" data-edit-booking="${esc(b.id)}">Editează</button>
           <button type="button" class="btn btn-ghost btn-sm" data-task-for-booking="${esc(b.id)}">+ Sarcină</button>
+          <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-booking="${esc(b.id)}">Șterge</button>
         </div>
       </td>
     </tr>`
@@ -395,7 +427,10 @@ function renderCustomers() {
         <td>${enqCount}</td>
         <td>${bkCount}</td>
         <td>
-          <button type="button" class="btn btn-secondary btn-sm" data-edit-customer="${esc(c.id)}">Editează</button>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-edit-customer="${esc(c.id)}">Editează</button>
+            <button type="button" class="btn btn-danger-ghost btn-sm" data-delete-customer="${esc(c.id)}">Șterge</button>
+          </div>
         </td>
       </tr>`;
     })
@@ -434,7 +469,7 @@ function renderTasks() {
           <div>
             <strong>${esc(t.title)}</strong>
             <div class="muted small">
-              Scadență: ${esc(t.dueDate || 'Fără termen')}
+              Scadență: ${esc(t.dueDate || 'Fără termen')}${t.done ? '' : dueBadgeHtml(t.dueDate)}
               ${linkParts.length ? ` · ${esc(linkParts.join(' | '))}` : ''}
             </div>
           </div>
@@ -549,6 +584,32 @@ document.addEventListener('click', (event) => {
     state.tasks = state.tasks.filter((x) => x.id !== btn.dataset.deleteTask);
     saveState();
     renderAll();
+    showToast('Sarcină ștearsă.');
+  } else if (btn.dataset.deleteEnquiry) {
+    state.enquiries = state.enquiries.filter((x) => x.id !== btn.dataset.deleteEnquiry);
+    state.tasks = state.tasks.filter((t) => t.enquiryId !== btn.dataset.deleteEnquiry);
+    saveState();
+    renderAll();
+    showToast('Cerere ștearsă.');
+  } else if (btn.dataset.deleteBooking) {
+    state.bookings = state.bookings.filter((x) => x.id !== btn.dataset.deleteBooking);
+    state.tasks = state.tasks.filter((t) => t.bookingId !== btn.dataset.deleteBooking);
+    saveState();
+    renderAll();
+    showToast('Rezervare ștearsă.');
+  } else if (btn.dataset.deleteCustomer) {
+    const id = btn.dataset.deleteCustomer;
+    const hasLinks =
+      state.enquiries.some((e) => e.customerId === id) ||
+      state.bookings.some((b) => b.customerId === id);
+    if (hasLinks) {
+      showToast('Clientul are cereri sau rezervări asociate și nu poate fi șters.');
+      return;
+    }
+    state.customers = state.customers.filter((c) => c.id !== id);
+    saveState();
+    renderAll();
+    showToast('Client șters.');
   } else if (btn.dataset.loadOffer) {
     const off = state.offers.find((x) => x.id === btn.dataset.loadOffer);
     if (off) {
@@ -573,6 +634,14 @@ document.addEventListener('change', (event) => {
       t.done = target.checked;
       saveState();
       renderAll();
+    }
+  } else if (target.matches('select[data-quick-enquiry-status]')) {
+    const enq = state.enquiries.find((x) => x.id === target.dataset.quickEnquiryStatus);
+    if (enq) {
+      enq.status = target.value;
+      saveState();
+      renderAll();
+      showToast(`Status actualizat: ${enq.status}`);
     }
   }
 });
@@ -644,8 +713,12 @@ function openEntityModal(type, existing = null) {
     modalTitleEl.textContent = existing?.id ? 'Editează cerere' : 'Cerere nouă';
     modalFieldsEl.innerHTML = `
       <div class="field">
-        <label for="f-customer">Client *</label>
+        <label for="f-customer">Client existent *</label>
         <select id="f-customer" name="customerId" class="input">${customerOptionsHtml(existing?.customerId)}</select>
+      </div>
+      <div class="field">
+        <label for="f-new-customer">Sau creează client nou rapid (opțional)</label>
+        <input id="f-new-customer" name="newCustomerName" class="input" placeholder="Lasă gol dacă ai ales din listă">
       </div>
       <div class="field">
         <label for="f-dest">Destinație *</label>
@@ -695,8 +768,12 @@ function openEntityModal(type, existing = null) {
     modalFieldsEl.innerHTML = `
       <input type="hidden" name="enquiryId" value="${esc(existing?.enquiryId || '')}">
       <div class="field">
-        <label for="f-customer">Client *</label>
+        <label for="f-customer">Client existent *</label>
         <select id="f-customer" name="customerId" class="input">${customerOptionsHtml(existing?.customerId)}</select>
+      </div>
+      <div class="field">
+        <label for="f-new-customer">Sau creează client nou rapid (opțional)</label>
+        <input id="f-new-customer" name="newCustomerName" class="input" placeholder="Lasă gol dacă ai ales din listă">
       </div>
       <div class="field">
         <label for="f-dest">Destinație *</label>
@@ -767,6 +844,23 @@ modalFormEl.addEventListener('submit', (e) => {
     modalErrorEl.hidden = false;
   };
 
+  const resolveCustomerId = () => {
+    const newName = data.newCustomerName?.trim();
+    if (!newName) return data.customerId;
+    const existing = state.customers.find(
+      (c) => c.name.trim().toLowerCase() === newName.toLowerCase()
+    );
+    if (existing) return existing.id;
+    const created = {
+      id: uid('cust'),
+      name: newName,
+      channel: data.source || 'WhatsApp',
+      note: 'Creat rapid din formular',
+    };
+    state.customers.unshift(created);
+    return created.id;
+  };
+
   if (activeModal.type === 'customer') {
     if (!data.name?.trim()) return showError('Numele clientului este obligatoriu.');
     if (activeModal.id) {
@@ -786,7 +880,7 @@ modalFormEl.addEventListener('submit', (e) => {
   } else if (activeModal.type === 'enquiry') {
     if (!data.destination?.trim()) return showError('Destinația este obligatorie.');
     const payload = {
-      customerId: data.customerId,
+      customerId: resolveCustomerId(),
       destination: data.destination.trim(),
       travelDate: data.travelDate,
       followUpDate: data.followUpDate,
@@ -807,7 +901,7 @@ modalFormEl.addEventListener('submit', (e) => {
     if (!Number.isFinite(amount) || amount < 0) return showError('Introduceți o valoare validă.');
     const payload = {
       enquiryId: data.enquiryId || '',
-      customerId: data.customerId,
+      customerId: resolveCustomerId(),
       destination: data.destination.trim(),
       supplier: data.supplier.trim(),
       travelDate: data.travelDate,
@@ -925,6 +1019,20 @@ document.getElementById('save-offer-btn').addEventListener('click', () => {
   });
   saveState();
   renderSavedOffers();
+  showToast('Schiță salvată local.');
+});
+
+document.getElementById('copy-offer-btn').addEventListener('click', async () => {
+  const title = document.getElementById('offer-editor-title').value.trim();
+  const body = document.getElementById('offer-editor-body').value.trim();
+  if (!body) return showToast('Nu există conținut de copiat.');
+  const text = title ? `*${title}*\n\n${body}` : body;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Schița a fost copiată pentru WhatsApp.');
+  } catch {
+    showToast('Copierea automată a eșuat; selectați textul manual.');
+  }
 });
 
 document.getElementById('print-offer-btn').addEventListener('click', () => {
@@ -1106,6 +1214,50 @@ document.getElementById('csv-commit-btn').addEventListener('click', () => {
   document.getElementById('csv-preview-summary').textContent =
     `Import finalizat: ${imported} adăugate, ${updated} actualizate, ${skipped} sărite.`;
   document.getElementById('csv-commit-btn').disabled = true;
+});
+
+document.getElementById('backup-json-btn').addEventListener('click', () => {
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `travelagencyos-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup JSON descărcat.');
+});
+
+document.getElementById('restore-json-input').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (
+      !parsed ||
+      !Array.isArray(parsed.customers) ||
+      !Array.isArray(parsed.enquiries) ||
+      !Array.isArray(parsed.bookings) ||
+      !Array.isArray(parsed.tasks)
+    ) {
+      showToast('Fișier JSON invalid pentru TravelAgencyOS.');
+      return;
+    }
+    state = {
+      customers: parsed.customers,
+      enquiries: parsed.enquiries,
+      bookings: parsed.bookings,
+      tasks: parsed.tasks,
+      offers: Array.isArray(parsed.offers) ? parsed.offers : [],
+    };
+    saveState();
+    renderAll();
+    showToast('Backup JSON restaurat.');
+  } catch {
+    showToast('Nu s-a putut citi fișierul JSON.');
+  } finally {
+    e.target.value = '';
+  }
 });
 
 /* ---------------- INIT ---------------- */
