@@ -7,8 +7,11 @@ import {
 import { getDueStatus, getDueLabel } from '/date-utils.js';
 import {
   APPLICATION_STAGES,
+  ROOM_TYPES,
   computeMasterTripMetrics,
   autoQualifyApplication,
+  analyzeRooming,
+  buildHotelRoomingRows,
 } from '/trip-utils.js';
 
 const STORAGE_KEY = 'travelagencyos_garlic_v2';
@@ -72,6 +75,8 @@ function createSeedState() {
         customerId: 'cust-1',
         pax: 2,
         budgetPerPax: 1900,
+        roomType: 'Double',
+        roomCode: 'Cam. 1',
         stage: 'Avans achitat',
         qualificationStatus: 'Calificat automat',
         qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
@@ -84,6 +89,8 @@ function createSeedState() {
         customerId: 'cust-2',
         pax: 2,
         budgetPerPax: 1850,
+        roomType: 'Double',
+        roomCode: 'Cam. 2',
         stage: 'Confirmat',
         qualificationStatus: 'Calificat automat',
         qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
@@ -96,11 +103,13 @@ function createSeedState() {
         customerId: 'cust-3',
         pax: 1,
         budgetPerPax: 1300,
+        roomType: 'Twin (Partajabil)',
+        roomCode: 'Cam. 3',
         stage: 'Aplicat',
         qualificationStatus: 'Buget sub prag',
         qualificationReasons: ['Buget (1300 EUR) sub pragul sejurului (1850 EUR)'],
         appliedAt: '2026-11-15',
-        notes: ['15 nov · Aplicat; necesită discuție buget'],
+        notes: ['15 nov · Caută coleg cameră Twin'],
       },
       {
         id: 'app-4',
@@ -108,6 +117,8 @@ function createSeedState() {
         customerId: 'cust-4',
         pax: 4,
         budgetPerPax: 1600,
+        roomType: 'Double',
+        roomCode: 'Cam. 1',
         stage: 'Ofertă trimisă',
         qualificationStatus: 'Calificat automat',
         qualificationReasons: ['Buget și locuri compatibile cu sejurul'],
@@ -120,9 +131,9 @@ function createSeedState() {
       { id: 'tsk-2', title: 'Follow-up Ana & Mara pentru Maramureș', dueDate: '2026-11-20', done: false, tripId: 'trip-2' },
     ],
     documents: [
-      { id: 'doc-1', tripId: 'trip-1', title: 'Itinerariu Svalbard 2027.pdf', kind: 'Itinerariu', updatedAt: '2026-11-14' },
-      { id: 'doc-2', tripId: 'trip-1', title: 'Checklist echipament polar.pdf', kind: 'Ghid călător', updatedAt: '2026-11-15' },
-      { id: 'doc-3', tripId: 'trip-2', title: 'Program Maramureș 4 zile.pdf', kind: 'Itinerariu', updatedAt: '2026-11-12' },
+      { id: 'doc-1', tripId: 'trip-1', title: 'Itinerariu Svalbard 2027.pdf', kind: 'Itinerariu', audience: 'Client', version: 2, sentLog: ['15 nov · Trimis grup WhatsApp (v2)'], updatedAt: '2026-11-15' },
+      { id: 'doc-2', tripId: 'trip-1', title: 'Rooming List Hotel Polar.csv', kind: 'Rooming', audience: 'Furnizor', version: 1, sentLog: ['14 nov · Trimis la Hotel (v1)'], updatedAt: '2026-11-14' },
+      { id: 'doc-3', tripId: 'trip-2', title: 'Program Maramureș 4 zile.pdf', kind: 'Itinerariu', audience: 'Client', version: 1, sentLog: [], updatedAt: '2026-11-12' },
     ],
     offerDrafts: {},
   };
@@ -337,27 +348,96 @@ function renderMasterTripCenter(trip) {
           <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează structura de cost</button>
         </div>
       </div>`;
+  } else if (state.activeCenterTab === 'rooms') {
+    const roomSummary = analyzeRooming(tripApps, state.customers);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <div>
+            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
+            <p class="muted small">${roomSummary.rooms.length} camere · ${
+              roomSummary.unpairedShareCount > 0
+                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
+                : 'Toate camerele Twin sunt împerecheate'
+            }</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Pax</th>
+                <th>Tip cameră</th>
+                <th>Cameră</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                tripApps.filter((a) => a.stage !== 'Respins').length === 0
+                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
+                  : tripApps
+                      .filter((a) => a.stage !== 'Respins')
+                      .map((a) => {
+                        const cust = getCustomer(a.customerId);
+                        return `
+                        <tr>
+                          <td><strong>${esc(cust.name)}</strong></td>
+                          <td>${a.pax}</td>
+                          <td>
+                            <select class="inline-select" data-room-type="${esc(a.id)}">
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                            </select>
+                          </td>
+                          <td>
+                            <select class="inline-select" data-room-code="${esc(a.id)}">
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                            </select>
+                          </td>
+                        </tr>`;
+                      })
+                      .join('')
+              }
+            </tbody>
+          </table>
+        </div>
+        ${
+          roomSummary.rooms.some((r) => r.alert)
+            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+                .filter((r) => r.alert)
+                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>`;
   } else if (state.activeCenterTab === 'docs') {
     const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
           <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
         </div>
-        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
         ${
           tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            ? '<p class="muted small">Niciun document atașat.</p>'
             : `<div class="stack">${tripDocs
                 .map(
                   (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
                   <div>
                     <strong>${esc(d.title)}</strong>
-                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                    <span class="badge">${esc(d.audience || 'Client')}</span>
+                    <span class="badge badge-accent">v${d.version || 1}</span>
+                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
                   </div>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                  <div class="header-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
+                  </div>
                 </div>`
                 )
                 .join('')}</div>`
@@ -413,6 +493,7 @@ function renderMasterTripCenter(trip) {
 
     <div class="sub-tabs no-print">
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">Aplicanți (${tripApps.length})</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">Camere</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">Costuri</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">Ofertă &amp; PDF</button>
@@ -608,6 +689,40 @@ document.addEventListener('click', async (e) => {
     }
   } else if (btn.id === 'add-doc-btn') {
     openDocModal();
+  } else if (btn.id === 'export-rooming-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const tripApps = state.applications.filter((a) => a.tripId === trip.id);
+    const rows = buildHotelRoomingRows(tripApps, state.customers);
+    if (rows.length === 0) return showToast('Alocați cel puțin o cameră înainte de export.');
+    const csv = buildCsv(['camera', 'tip_camera', 'oaspeti', 'pax', 'observatii'], rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rooming-${trip.id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Rooming List exportat (fără prețuri interne).');
+  } else if (btn.dataset.docBump) {
+    const doc = (state.documents || []).find((d) => d.id === btn.dataset.docBump);
+    if (doc) {
+      doc.version = Number(doc.version || 1) + 1;
+      doc.updatedAt = new Date().toISOString().slice(0, 10);
+      saveState();
+      renderTripsView();
+      showToast(`Versiune nouă: v${doc.version}`);
+    }
+  } else if (btn.dataset.docSent) {
+    const doc = (state.documents || []).find((d) => d.id === btn.dataset.docSent);
+    if (doc) {
+      doc.sentLog = doc.sentLog || [];
+      const dateStr = new Date().toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' });
+      doc.sentLog.unshift(`${dateStr} · Trimis (${doc.audience || 'Client'} v${doc.version || 1})`);
+      saveState();
+      renderTripsView();
+      showToast('Marcat ca trimis.');
+    }
   } else if (btn.dataset.deleteDoc) {
     state.documents = (state.documents || []).filter((d) => d.id !== btn.dataset.deleteDoc);
     saveState();
@@ -631,6 +746,20 @@ document.addEventListener('change', (e) => {
       saveState();
       renderTripsView();
       showToast(`Status: ${app.stage}`);
+    }
+  } else if (e.target.matches('select[data-room-type]')) {
+    const app = state.applications.find((a) => a.id === e.target.dataset.roomType);
+    if (app) {
+      app.roomType = e.target.value;
+      saveState();
+      renderTripsView();
+    }
+  } else if (e.target.matches('select[data-room-code]')) {
+    const app = state.applications.find((a) => a.id === e.target.dataset.roomCode);
+    if (app) {
+      app.roomCode = e.target.value;
+      saveState();
+      renderTripsView();
     }
   } else if (e.target.matches('input[type="checkbox"][data-toggle-task]')) {
     const t = state.tasks.find((x) => x.id === e.target.dataset.toggleTask);
@@ -718,7 +847,10 @@ function openApplyModal() {
       <div class="field"><label for="a-pax">Nr. persoane</label><input id="a-pax" name="pax" type="number" min="1" class="input" value="2"></div>
       <div class="field"><label for="a-budget">Buget / pax (${esc(trip.currency)})</label><input id="a-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(trip.pricePerPax)}"></div>
     </div>
-    <div class="field"><label for="a-channel">Canal</label><select id="a-channel" name="channel" class="input"><option>Formular Sejur</option><option>WhatsApp</option><option>Instagram</option><option>Email</option></select></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="a-channel">Canal</label><select id="a-channel" name="channel" class="input"><option>Formular Sejur</option><option>WhatsApp</option><option>Instagram</option><option>Email</option></select></div>
+      <div class="field"><label for="a-room">Preferință cameră</label><select id="a-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
+    </div>
   `;
   modalEl.hidden = false;
 }
@@ -728,7 +860,10 @@ function openDocModal() {
   modalTitleEl.textContent = 'Document nou pentru sejur';
   modalFieldsEl.innerHTML = `
     <div class="field"><label for="d-title">Nume document *</label><input id="d-title" name="title" class="input" required placeholder="ex. Itinerariu final.pdf"></div>
-    <div class="field"><label for="d-kind">Tip</label><select id="d-kind" name="kind" class="input"><option>Itinerariu</option><option>Ghid călător</option><option>Ofertă furnizor</option><option>Contract</option></select></div>
+    <div class="two-col-tight">
+      <div class="field"><label for="d-kind">Tip</label><select id="d-kind" name="kind" class="input"><option>Itinerariu</option><option>Rooming</option><option>Ghid călător</option><option>Contract</option></select></div>
+      <div class="field"><label for="d-audience">Destinatar</label><select id="d-audience" name="audience" class="input"><option>Client</option><option>Furnizor</option></select></div>
+    </div>
   `;
   modalEl.hidden = false;
 }
@@ -768,27 +903,96 @@ modalFormEl.addEventListener('submit', (e) => {
     };
     if (activeModal.id) {
       Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
-    } else if (state.activeCenterTab === 'docs') {
+    } else if (state.activeCenterTab === 'rooms') {
+    const roomSummary = analyzeRooming(tripApps, state.customers);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <div>
+            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
+            <p class="muted small">${roomSummary.rooms.length} camere · ${
+              roomSummary.unpairedShareCount > 0
+                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
+                : 'Toate camerele Twin sunt împerecheate'
+            }</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Pax</th>
+                <th>Tip cameră</th>
+                <th>Cameră</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                tripApps.filter((a) => a.stage !== 'Respins').length === 0
+                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
+                  : tripApps
+                      .filter((a) => a.stage !== 'Respins')
+                      .map((a) => {
+                        const cust = getCustomer(a.customerId);
+                        return `
+                        <tr>
+                          <td><strong>${esc(cust.name)}</strong></td>
+                          <td>${a.pax}</td>
+                          <td>
+                            <select class="inline-select" data-room-type="${esc(a.id)}">
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                            </select>
+                          </td>
+                          <td>
+                            <select class="inline-select" data-room-code="${esc(a.id)}">
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                            </select>
+                          </td>
+                        </tr>`;
+                      })
+                      .join('')
+              }
+            </tbody>
+          </table>
+        </div>
+        ${
+          roomSummary.rooms.some((r) => r.alert)
+            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+                .filter((r) => r.alert)
+                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>`;
+  } else if (state.activeCenterTab === 'docs') {
     const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
           <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
         </div>
-        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
         ${
           tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            ? '<p class="muted small">Niciun document atașat.</p>'
             : `<div class="stack">${tripDocs
                 .map(
                   (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
                   <div>
                     <strong>${esc(d.title)}</strong>
-                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                    <span class="badge">${esc(d.audience || 'Client')}</span>
+                    <span class="badge badge-accent">v${d.version || 1}</span>
+                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
                   </div>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                  <div class="header-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
+                  </div>
                 </div>`
                 )
                 .join('')}</div>`
@@ -819,6 +1023,8 @@ modalFormEl.addEventListener('submit', (e) => {
       customerId: cust.id,
       pax: Number(data.pax || 1),
       budgetPerPax: Number(data.budgetPerPax || 0),
+      roomType: data.roomType || 'Double',
+      roomCode: 'Neasignat',
       stage: qual.suggestedStage,
       qualificationStatus: qual.status,
       qualificationReasons: qual.reasons,
@@ -835,6 +1041,9 @@ modalFormEl.addEventListener('submit', (e) => {
       tripId: activeModal.tripId,
       title: data.title.trim(),
       kind: data.kind || 'Itinerariu',
+      audience: data.audience || 'Client',
+      version: 1,
+      sentLog: [],
       updatedAt: new Date().toISOString().slice(0, 10),
     });
     showToast('Document adăugat.');
@@ -875,27 +1084,96 @@ function exportDatasetCsv(kind) {
       calificare: a.qualificationStatus,
       etapa: a.stage,
     }));
+  } else if (state.activeCenterTab === 'rooms') {
+    const roomSummary = analyzeRooming(tripApps, state.customers);
+    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6'];
+    tabBodyHtml = `
+      <div class="card">
+        <div class="master-header" style="margin-bottom:10px">
+          <div>
+            <h2 style="margin:0;font-size:1rem">Camere &amp; Partajare</h2>
+            <p class="muted small">${roomSummary.rooms.length} camere · ${
+              roomSummary.unpairedShareCount > 0
+                ? `<span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>`
+                : 'Toate camerele Twin sunt împerecheate'
+            }</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Pax</th>
+                <th>Tip cameră</th>
+                <th>Cameră</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                tripApps.filter((a) => a.stage !== 'Respins').length === 0
+                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
+                  : tripApps
+                      .filter((a) => a.stage !== 'Respins')
+                      .map((a) => {
+                        const cust = getCustomer(a.customerId);
+                        return `
+                        <tr>
+                          <td><strong>${esc(cust.name)}</strong></td>
+                          <td>${a.pax}</td>
+                          <td>
+                            <select class="inline-select" data-room-type="${esc(a.id)}">
+                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${(a.roomType || 'Double') === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+                            </select>
+                          </td>
+                          <td>
+                            <select class="inline-select" data-room-code="${esc(a.id)}">
+                              ${roomCodes.map((rc) => `<option value="${rc}" ${(a.roomCode || 'Neasignat') === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+                            </select>
+                          </td>
+                        </tr>`;
+                      })
+                      .join('')
+              }
+            </tbody>
+          </table>
+        </div>
+        ${
+          roomSummary.rooms.some((r) => r.alert)
+            ? `<div class="stack" style="margin-top:12px">${roomSummary.rooms
+                .filter((r) => r.alert)
+                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>`;
   } else if (state.activeCenterTab === 'docs') {
     const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
     tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente sejur</h2>
+          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
           <button type="button" class="btn btn-secondary btn-sm" id="add-doc-btn">+ Document</button>
         </div>
-        <p class="muted small" style="margin-bottom:12px">Evidență documente (itinerariu, ghid, voucher). Nu încărcați pașapoarte/CI reale în prototipul local.</p>
         ${
           tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat încă.</p>'
+            ? '<p class="muted small">Niciun document atașat.</p>'
             : `<div class="stack">${tripDocs
                 .map(
                   (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
                   <div>
                     <strong>${esc(d.title)}</strong>
-                    <div class="muted small">${esc(d.kind)} · ${esc(d.updatedAt || '')}</div>
+                    <span class="badge">${esc(d.audience || 'Client')}</span>
+                    <span class="badge badge-accent">v${d.version || 1}</span>
+                    <div class="muted small">${esc(d.kind)} · ${(d.sentLog && d.sentLog[0]) ? esc(d.sentLog[0]) : 'Netrimis'}</div>
                   </div>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">Șterge</button>
+                  <div class="header-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
+                  </div>
                 </div>`
                 )
                 .join('')}</div>`

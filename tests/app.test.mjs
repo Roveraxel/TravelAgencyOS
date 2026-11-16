@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, analyzeRooming, buildHotelRoomingRows } from '../public/trip-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
 test('parseCsvText handles UTF-8 BOM, semicolons, and quoted commas', () => {
@@ -144,4 +144,28 @@ test('autoQualifyApplication classifies budget fit and capacity limits', () => {
 
   const full = autoQualifyApplication(trip, { pax: 2, budgetPerPax: 1000 }, 3);
   assert.equal(full.status, 'Necesită verificare');
+});
+
+test('analyzeRooming detects unpaired Twin (Partajabil) and buildHotelRoomingRows strips pricing', () => {
+  const customers = [
+    { id: 'c1', name: 'Solo A' },
+    { id: 'c2', name: 'Solo B' },
+  ];
+  const apps = [
+    { customerId: 'c1', pax: 1, roomType: 'Twin (Partajabil)', roomCode: 'Cam. 1', stage: 'Confirmat', pricePerPax: 999 },
+    { customerId: 'c2', pax: 1, roomType: 'Twin (Partajabil)', roomCode: 'Cam. 2', stage: 'Aplicat', pricePerPax: 999 },
+  ];
+  const unpaired = analyzeRooming(apps, customers);
+  assert.equal(unpaired.unpairedShareCount, 2);
+
+  // Pair Solo B into Cam. 1
+  apps[1].roomCode = 'Cam. 1';
+  const paired = analyzeRooming(apps, customers);
+  assert.equal(paired.unpairedShareCount, 0);
+  assert.equal(paired.rooms[0].pax, 2);
+
+  const hotelRows = buildHotelRoomingRows(apps, customers);
+  assert.equal(hotelRows.length, 1);
+  assert.equal(hotelRows[0].oaspeti, 'Solo A + Solo B');
+  assert.equal('pricePerPax' in hotelRows[0], false);
 });

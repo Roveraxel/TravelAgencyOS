@@ -11,9 +11,11 @@
   - **Garlic Trail-inspired palette** (pine `#1B3B2B`, warm parchment `#FAF8F4`, terracotta `#C85A32`, emerald profit badges).
   - **Master Trips** as the primary object (`Svalbard Arctic Expedition`, `Maramureș & Bucovina Trail`, `Vietnam & Cambodgia`) with live **Cost / Revenue / Profit** calculation (`computeMasterTripMetrics`).
   - **Customer Apply Simulator + Auto-Qualification** (`autoQualifyApplication`): customers apply to a Master Trip and are automatically qualified (`Calificat automat`, `Necesită verificare`, `Buget sub prag`) into the 3-pane Lever/Greenhouse-style ATS pipeline.
+  - **Shared Rooms & Rooming List** (`Camere` tab, `analyzeRooming`, `buildHotelRoomingRows`): assign `Double` / `Twin (Partajabil)` / `Single` / `Triple`, detect unpaired solo-share rooms (`Caută coleg(ă)`), and export hotel-ready Rooming CSV stripped of internal pricing.
+  - **Document Story & Versioning** (`Documente` tab): track `v1 → v2` versions, `Client` vs `Furnizor` audience, and sent history log.
   - **Offer Master & Print/PDF** tab with optional Gemini AI draft, WhatsApp copy, and `@media print`.
   - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (8/8 passing offline).
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (9/9 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 

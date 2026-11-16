@@ -11,6 +11,13 @@ export const APPLICATION_STAGES = [
   'Respins',
 ];
 
+export const ROOM_TYPES = [
+  'Double',
+  'Twin (Partajabil)',
+  'Single',
+  'Triple',
+];
+
 const ACTIVE_REVENUE_STAGES = new Set(['Ofertă trimisă', 'Avans achitat', 'Confirmat']);
 const CONFIRMED_STAGES = new Set(['Avans achitat', 'Confirmat']);
 
@@ -88,4 +95,63 @@ export function autoQualifyApplication(trip, application, currentConfirmedPax = 
     reasons,
     suggestedStage: 'Calificat',
   };
+}
+
+/**
+ * Grupează aplicanții unui sejur pe camere și detectează camerele Twin partajabile neîmperecheate.
+ */
+export function analyzeRooming(tripApplications = [], customers = []) {
+  const custMap = new Map(customers.map((c) => [c.id, c.name]));
+  const active = tripApplications.filter((a) => a.stage !== 'Respins');
+  const roomMap = new Map();
+
+  for (const app of active) {
+    const code = (app.roomCode || '').trim() || 'Neasignat';
+    if (!roomMap.has(code)) {
+      roomMap.set(code, {
+        roomCode: code,
+        roomType: app.roomType || 'Double',
+        pax: 0,
+        guests: [],
+      });
+    }
+    const entry = roomMap.get(code);
+    entry.pax += Number(app.pax || 1);
+    entry.guests.push(custMap.get(app.customerId) || 'Client');
+    if (app.roomType) entry.roomType = app.roomType;
+  }
+
+  const rooms = [...roomMap.values()].map((r) => {
+    let alert = '';
+    if (r.roomCode === 'Neasignat') {
+      alert = 'Necesită alocare';
+    } else if (r.roomType === 'Twin (Partajabil)' && r.pax === 1) {
+      alert = 'Caută coleg(ă)';
+    } else if ((r.roomType === 'Double' || r.roomType === 'Twin (Partajabil)') && r.pax > 2) {
+      alert = 'Depășește 2 pax';
+    } else if (r.roomType === 'Single' && r.pax > 1) {
+      alert = 'Single cu >1 pax';
+    }
+    return { ...r, alert };
+  });
+
+  const unpairedShareCount = rooms.filter((r) => r.alert === 'Caută coleg(ă)').length;
+  return { rooms, unpairedShareCount };
+}
+
+/**
+ * Construiește rândurile pentru exportul Rooming List către hotel/furnizor,
+ * eliminând complet prețurile, costurile și marja agenției.
+ */
+export function buildHotelRoomingRows(tripApplications = [], customers = []) {
+  const { rooms } = analyzeRooming(tripApplications, customers);
+  return rooms
+    .filter((r) => r.roomCode !== 'Neasignat')
+    .map((r) => ({
+      camera: r.roomCode,
+      tip_camera: r.roomType,
+      oaspeti: r.guests.join(' + '),
+      pax: r.pax,
+      observatii: r.alert || 'OK',
+    }));
 }
