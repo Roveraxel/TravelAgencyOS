@@ -702,6 +702,132 @@ body {
   line-height: 1.6;
 }
 
+/* -------- PUBLIC GARLIC TRIPS BOARD & APPLY PAGE -------- */
+.pub-hero {
+  border-radius: 16px;
+  padding: 32px 28px;
+  color: #ffffff;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.pub-hero.theme-arctic {
+  background: linear-gradient(135deg, #0f2936 0%, #1b3b2b 55%, #2b5848 100%);
+}
+
+.pub-hero.theme-forest {
+  background: linear-gradient(135deg, #1b3b2b 0%, #2d5a3f 55%, #4a7856 100%);
+}
+
+.pub-hero.theme-tropical {
+  background: linear-gradient(135deg, #1a3a3a 0%, #255c54 55%, #b85d38 100%);
+}
+
+.pub-kicker {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  margin-bottom: 10px;
+}
+
+.pub-hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+}
+
+.pub-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+  font-size: 0.88rem;
+  opacity: 0.92;
+}
+
+.pub-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.95fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.pub-day {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pub-day:last-child {
+  border-bottom: 0;
+}
+
+.pub-day-badge {
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  height: fit-content;
+}
+
+.pub-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.pub-trip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+.pub-trip-cover {
+  padding: 20px 18px;
+  color: #ffffff;
+}
+
+.pub-trip-cover.theme-arctic {
+  background: linear-gradient(135deg, #0f2936, #1b3b2b);
+}
+
+.pub-trip-cover.theme-forest {
+  background: linear-gradient(135deg, #1b3b2b, #3a6b4c);
+}
+
+.pub-trip-cover.theme-tropical {
+  background: linear-gradient(135deg, #1a3a3a, #b85d38);
+}
+
+.pub-trip-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+@media (max-width: 820px) {
+  .pub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1020px) {
   .ats-shell {
     grid-template-columns: 1fr;

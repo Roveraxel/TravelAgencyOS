@@ -37,6 +37,7 @@ function createSeedState() {
         title: 'Svalbard Arctic Expedition',
         destination: 'Longyearbyen, Svalbard',
         dates: '2027-03-14 → 2027-03-21',
+        coverTheme: 'arctic',
         maxPax: 10,
         costPerPax: 1450,
         pricePerPax: 1850,
@@ -45,6 +46,12 @@ function createSeedState() {
         postingStatus: 'Publicat',
         style: 'Expediție grup mic, snowmobile, observare natură',
         publicSummary: '7 zile în Arctica cu grup restrâns (max 10 persoane), tură cu snowmobilul și cabană nordică.',
+        highlights: [
+          ['Ziua 1–2', 'Sosire Longyearbyen, cazare Basecamp & briefing polar'],
+          ['Ziua 3–4', 'Expediție cu snowmobilul spre ghețarii de est'],
+          ['Ziua 5–6', 'Peștera de gheață & seară nordică la cabană'],
+          ['Ziua 7', 'Zbor retur spre casă'],
+        ],
         includedText: 'Cazare 7 nopți, ghid însoțitor, tură snowmobil, transfer aeroport',
         excludedText: 'Zbor internațional, echipament termic personal, asigurare',
         customQuestions: [
@@ -61,6 +68,7 @@ function createSeedState() {
         title: 'Maramureș & Bucovina Trail',
         destination: 'Maramureș, România',
         dates: '2027-05-01 → 2027-05-04',
+        coverTheme: 'forest',
         maxPax: 12,
         costPerPax: 1150,
         pricePerPax: 1550,
@@ -69,6 +77,11 @@ function createSeedState() {
         postingStatus: 'Publicat',
         style: 'Drumeții ușoare, pensiuni locale, cină tradițională',
         publicSummary: 'Weekend prelungit pe poteci din Maramureș, cazare autentică în Breb și mese locale.',
+        highlights: [
+          ['Ziua 1', 'Sosire în Breb, cină tradițională la pensiune'],
+          ['Ziua 2', 'Drumeție Creasta Cocoșului & atelier meșteșuguri'],
+          ['Ziua 3–4', 'Mocănița & întoarcere spre Timișoara / Cluj'],
+        ],
         includedText: 'Cazare 3 nopți cu demipensiune, ghid montan, transport microbuz',
         excludedText: 'Mesele de prânz, bilete intrare obiective',
         customQuestions: [
@@ -84,6 +97,7 @@ function createSeedState() {
         title: 'Vietnam & Cambodgia (2 săpt.)',
         destination: 'Hanoi · Ha Long · Siem Reap',
         dates: '2027-10-10 → 2027-10-24',
+        coverTheme: 'tropical',
         maxPax: 12,
         costPerPax: 1680,
         pricePerPax: 2150,
@@ -92,6 +106,11 @@ function createSeedState() {
         postingStatus: 'Publicat',
         style: 'Grup de prieteni, street food, temple Angkor',
         publicSummary: 'Circuit de 14 zile din nordul Vietnamului până la templele Angkor Wat.',
+        highlights: [
+          ['Zilele 1–4', 'Hanoi Old Quarter, street food tour & Ninh Binh'],
+          ['Zilele 5–6', 'Croazieră 2 nopți în Ha Long Bay'],
+          ['Zilele 7–14', 'Zbor spre Siem Reap & răsărit la Angkor Wat'],
+        ],
         includedText: 'Cazare 4*, croazieră Ha Long Bay 2n, transferuri interne, ghid',
         excludedText: 'Zbor intercontinental, taxe de viză',
         customQuestions: [
@@ -690,10 +709,7 @@ function renderMasterTripCenter(trip) {
     <div class="sub-tabs no-print">
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">${icon('users')} Aplicanți (${tripApps.length})</button>
       <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">${icon('bed')} Camere</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">${icon('globe')} Anunț Public</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'docs' ? 'is-active' : ''}" data-center-tab="docs">${icon('file')} Documente (${(state.documents || []).filter((d) => d.tripId === trip.id).length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'costs' ? 'is-active' : ''}" data-center-tab="costs">${icon('coins')} Costuri &amp; Furnizori</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'offer' ? 'is-active' : ''}" data-center-tab="offer">${icon('sparkles')} Ofertă &amp; PDF</button>
+      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">${icon('globe')} Anunț &amp; Costuri</button>
     </div>
 
     ${tabBodyHtml}
@@ -1822,46 +1838,51 @@ document.getElementById('reset-demo-btn')?.addEventListener('click', () => {
 
 function renderPublicBoardPage() {
   const publicTrips = state.trips
-    .map((t) => buildPublicTripPostingView(t, state.applications))
-    .filter((p) => p.postingStatus === 'Publicat' || p.postingStatus === 'Locuri epuizate');
+    .map((t) => ({ raw: t, pub: buildPublicTripPostingView(t, state.applications) }))
+    .filter(({ pub }) => pub.postingStatus === 'Publicat' || pub.postingStatus === 'Locuri epuizate');
 
   document.body.innerHTML = `
     <header class="topbar">
       <div class="topbar-left">
-        <div class="brand"><span class="brand-dot"></span><span>Garlic Trips · Sejururi de Grup</span></div>
+        <div class="brand">
+          <img src="/favicon.svg" width="22" height="22" alt="" aria-hidden="true" style="border-radius:5px">
+          <span>Garlic Trips · Expediții de Grup</span>
+        </div>
       </div>
       <div class="topbar-right">
         <a href="/" class="btn btn-secondary btn-sm">Workspace Agenție →</a>
       </div>
     </header>
-    <main class="page-container" style="max-width:920px">
-      <div class="page-header">
-        <div>
-          <h1>Aventuri de grup deschise</h1>
-          <p class="muted small">Alege sejurul și aplică direct — locurile sunt limitate.</p>
-        </div>
+    <main class="page-container" style="max-width:1040px">
+      <div class="pub-hero theme-forest">
+        <span class="pub-kicker">Grupuri mici · Prieteni · Aventură</span>
+        <h1>Aventuri de grup deschise</h1>
+        <p style="margin:0;opacity:0.9">Alege expediția care ți se potrivește și aplică în 30 de secunde.</p>
       </div>
-      <div class="stack">
+      <div class="pub-board-grid">
         ${
           publicTrips.length === 0
             ? '<div class="card muted">Niciun sejur publicat în acest moment.</div>'
             : publicTrips
                 .map(
-                  (p) => `
-                <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-                  <div style="flex:1;min-width:240px">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                      <strong style="font-size:1.1rem">${esc(p.title)}</strong>
-                      <span class="badge ${p.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}">${p.spotsRemaining > 0 ? `${p.spotsRemaining} locuri libere` : 'Locuri epuizate'}</span>
+                  ({ raw, pub }) => `
+                <article class="pub-trip-card">
+                  <div class="pub-trip-cover theme-${esc(raw.coverTheme || 'forest')}">
+                    <div style="font-size:0.75rem;opacity:0.85;margin-bottom:4px">${esc(pub.destination)}</div>
+                    <strong style="font-size:1.18rem;display:block">${esc(pub.title)}</strong>
+                    <div style="font-size:0.82rem;opacity:0.9;margin-top:4px">${esc(pub.dates)}</div>
+                  </div>
+                  <div class="pub-trip-body">
+                    <span class="badge ${pub.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}" style="width:fit-content">
+                      ${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Locuri epuizate'}
+                    </span>
+                    <p class="small" style="margin:0;color:var(--text-secondary)">${esc(pub.publicSummary)}</p>
+                    <div style="margin-top:auto;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                      <div><strong style="font-size:1.1rem">${fmtMoney(pub.pricePerPax, pub.currency)}</strong> <span class="muted small">/ pers.</span></div>
+                      <a href="/?apply=${encodeURIComponent(pub.id)}" class="btn btn-accent btn-sm">Aplică →</a>
                     </div>
-                    <div class="muted small" style="margin-bottom:6px">${esc(p.destination)} · ${esc(p.dates)}</div>
-                    <div class="small">${esc(p.publicSummary)}</div>
                   </div>
-                  <div style="text-align:right">
-                    <div style="font-size:1.15rem;font-weight:700;margin-bottom:8px">${fmtMoney(p.pricePerPax, p.currency)} <span class="muted small">/ pers.</span></div>
-                    <a href="/?apply=${encodeURIComponent(p.id)}" class="btn btn-accent btn-sm">Aplică la sejur →</a>
-                  </div>
-                </div>`
+                </article>`
                 )
                 .join('')
         }
@@ -1875,51 +1896,84 @@ function renderPublicApplyPage(tripId) {
   if (!trip) return renderAll();
   const pub = buildPublicTripPostingView(trip, state.applications);
   const m = computeMasterTripMetrics(trip, state.applications);
+  const highlights = Array.isArray(trip.highlights) ? trip.highlights : [];
 
   document.body.innerHTML = `
     <header class="topbar">
       <div class="topbar-left">
-        <div class="brand"><span class="brand-dot"></span><span>Garlic Trips · Înscriere Sejur</span></div>
+        <div class="brand">
+          <img src="/favicon.svg" width="22" height="22" alt="" aria-hidden="true" style="border-radius:5px">
+          <span>Garlic Trips</span>
+        </div>
       </div>
       <div class="topbar-right">
         <a href="/?board=1" class="btn btn-secondary btn-sm">← Toate sejururile</a>
         <a href="/" class="btn btn-secondary btn-sm">Workspace Agenție</a>
       </div>
     </header>
-    <main class="page-container" style="max-width:600px">
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
-          <h1 style="margin:0;font-size:1.35rem">${esc(pub.title)}</h1>
-          <span class="badge ${pub.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}">${pub.spotsRemaining} locuri libere</span>
+    <main class="page-container" style="max-width:1020px">
+      <div class="pub-hero theme-${esc(trip.coverTheme || 'forest')}">
+        <span class="pub-kicker">${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Locuri epuizate'}</span>
+        <h1>${esc(pub.title)}</h1>
+        <p style="margin:0;opacity:0.92;max-width:640px">${esc(pub.publicSummary)}</p>
+        <div class="pub-meta-row">
+          <span>${icon('globe')} ${esc(pub.destination)}</span>
+          <span>${icon('calendar')} ${esc(pub.dates)}</span>
+          <span>${icon('coins')} <strong>${fmtMoney(pub.pricePerPax, pub.currency)}</strong> / pers.</span>
         </div>
-        <p class="muted small" style="margin-bottom:10px">${esc(pub.destination)} · ${esc(pub.dates)}</p>
-        <p class="small" style="margin:0 0 12px">${esc(pub.publicSummary)}</p>
-        <div class="metric-strip" style="margin-bottom:14px">
-          <div class="metric-item"><span>Tarif orientativ</span><strong>${fmtMoney(pub.pricePerPax, pub.currency)}/pers.</strong></div>
-          <div class="metric-item"><span>Inclus</span><strong>${esc(pub.includedText)}</strong></div>
-        </div>
-        <form id="public-apply-form" class="form-stack">
-          <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
-          <div class="two-col-tight">
-            <div class="field"><label for="pa-pax">Nr. persoane</label><input id="pa-pax" name="pax" type="number" min="1" class="input" value="2"></div>
-            <div class="field"><label for="pa-budget">Buget / pers. (${esc(pub.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(pub.pricePerPax)}"></div>
+      </div>
+
+      <div class="pub-grid">
+        <div class="stack">
+          ${
+            highlights.length > 0
+              ? `<div class="card">
+                  <h2 style="margin:0 0 10px;font-size:1.05rem">Program pe zile</h2>
+                  ${highlights
+                    .map(
+                      ([day, text]) => `
+                    <div class="pub-day">
+                      <span class="pub-day-badge">${esc(day)}</span>
+                      <div class="small">${esc(text)}</div>
+                    </div>`
+                    )
+                    .join('')}
+                </div>`
+              : ''
+          }
+          <div class="card">
+            <h2 style="margin:0 0 10px;font-size:1.05rem">Ce este inclus</h2>
+            <p class="small" style="margin:0 0 8px"><strong>Inclus:</strong> ${esc(pub.includedText)}</p>
+            <p class="small muted" style="margin:0"><strong>Neinclus:</strong> ${esc(pub.excludedText)}</p>
           </div>
-          <div class="field"><label for="pa-room">Preferință cameră</label><select id="pa-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
-          ${pub.customQuestions
-            .map(
-              (q) => `
-            <div class="field">
-              <label for="paq-${esc(q.id)}">${esc(q.label)}</label>
-              <select id="paq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
-                <option value="Da">Da</option>
-                <option value="Nu">Nu</option>
-              </select>
-            </div>`
-            )
-            .join('')}
-          <button type="submit" class="btn btn-accent">Trimite aplicarea</button>
-        </form>
-        <div id="public-apply-result" style="margin-top:14px"></div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin:0 0 4px;font-size:1.1rem">Aplică la expediție</h2>
+          <p class="muted small" style="margin-bottom:14px">Completează în 30 de secunde — primești răspuns rapid.</p>
+          <form id="public-apply-form" class="form-stack">
+            <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
+            <div class="two-col-tight">
+              <div class="field"><label for="pa-pax">Nr. persoane</label><input id="pa-pax" name="pax" type="number" min="1" class="input" value="2"></div>
+              <div class="field"><label for="pa-budget">Buget / pers. (${esc(pub.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(pub.pricePerPax)}"></div>
+            </div>
+            <div class="field"><label for="pa-room">Preferință cameră</label><select id="pa-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
+            ${pub.customQuestions
+              .map(
+                (q) => `
+              <div class="field">
+                <label for="paq-${esc(q.id)}">${esc(q.label)}</label>
+                <select id="paq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
+                  <option value="Da">Da</option>
+                  <option value="Nu">Nu</option>
+                </select>
+              </div>`
+              )
+              .join('')}
+            <button type="submit" class="btn btn-accent">Trimite aplicarea →</button>
+          </form>
+          <div id="public-apply-result" style="margin-top:14px"></div>
+        </div>
       </div>
     </main>
   `;
