@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText, buildBillingExportRows, buildSocialPostText } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText, buildBillingExportRows, buildSocialPostText, cloneMasterTrip } from '../public/trip-utils.js';
 import { renderMessageTemplate, parseInboundEmailText } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
@@ -312,4 +312,21 @@ test('buildBillingExportRows and buildSocialPostText generate accounting and pro
   const post = buildSocialPostText(trip, apps, 'https://example.com');
   assert.ok(post.includes('8 locuri libere'));
   assert.ok(post.includes('https://example.com/?apply=trip-1'));
+});
+
+test('cloneMasterTrip creates a new Draft trip with cloned stays and custom questions', () => {
+  const original = {
+    id: 'trip-1',
+    title: 'Svalbard',
+    postingStatus: 'Publicat',
+    stays: [{ id: 's1', name: 'Basecamp', nights: 7, doubleRooms: 4, singleRooms: 2 }],
+    customQuestions: [{ id: 'q1', label: 'Drumeții?', requiredAnswer: 'Da' }],
+  };
+  const cloned = cloneMasterTrip(original, 'trip-2');
+  assert.equal(cloned.id, 'trip-2');
+  assert.equal(cloned.postingStatus, 'Draft');
+  assert.ok(cloned.title.includes('Ediție nouă'));
+  assert.equal(cloned.stays.length, 1);
+  assert.notEqual(cloned.stays[0].id, 's1');
+  assert.equal(cloned.customQuestions.length, 1);
 });

@@ -18,6 +18,7 @@ import {
   buildGeneratedDocumentText,
   buildBillingExportRows,
   buildSocialPostText,
+  cloneMasterTrip,
 } from '/trip-utils.js';
 import { MESSAGE_TEMPLATES, renderMessageTemplate, parseInboundEmailText } from '/template-utils.js';
 import { icon, channelIcon } from '/icons.js';
@@ -674,6 +675,7 @@ function renderMasterTripCenter(trip) {
         </div>
         <div class="header-actions no-print">
           <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">${icon('link')} Link</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="clone-trip-btn">Duplică</button>
           <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">${icon('edit')} Editează</button>
           <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">${icon('userPlus')} Aplică</button>
         </div>
@@ -756,16 +758,41 @@ function renderApplicantRightRail(trip) {
 
 function renderTasksView() {
   const list = document.getElementById('tasks-list');
-  if (state.tasks.length === 0) {
-    list.innerHTML = '<div class="card muted small">Nicio sarcină.</div>';
-    return;
+  const openTasksCount =
+    state.tasks.filter((t) => !t.done).length +
+    (state.supplierDeadlines || []).filter((sd) => !sd.done).length;
+  const navTaskBtn = document.querySelector('.top-nav-btn[data-view="tasks"]');
+  if (navTaskBtn) {
+    navTaskBtn.innerHTML = `${icon('calendar')} Sarcini (${openTasksCount})`;
   }
-  list.innerHTML = state.tasks
-    .map((t) => {
-      const trip = state.trips.find((tr) => tr.id === t.tripId);
-      const dueStatus = t.done ? 'none' : getDueStatus(t.dueDate);
-      const dueLabel = getDueLabel(dueStatus);
-      return `
+
+  const deadlineHtml = (state.supplierDeadlines || []).map((sd) => {
+    const trip = state.trips.find((tr) => tr.id === sd.tripId);
+    const dueStatus = sd.done ? 'none' : getDueStatus(sd.dueDate);
+    const dueLabel = getDueLabel(dueStatus);
+    return `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;opacity:${sd.done ? 0.6 : 1}">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" ${sd.done ? 'checked' : ''} data-toggle-deadline="${esc(sd.id)}">
+          <div>
+            <strong>${esc(sd.supplierName)}</strong> <span class="badge">${esc(sd.kind)}</span>
+            <div class="muted small">
+              Termen: ${esc(sd.dueDate || '-')}
+              ${dueLabel ? `<span class="badge ${dueStatus === 'overdue' ? 'badge-danger' : 'badge-warning'}">${esc(dueLabel)}</span>` : ''}
+              ${sd.amount ? ` · ${fmtMoney(sd.amount, sd.currency)}` : ''}
+              ${trip ? ` · ${esc(trip.title)}` : ''}
+            </div>
+          </div>
+        </label>
+        <button type="button" class="btn btn-ghost btn-sm" data-delete-deadline="${esc(sd.id)}">Șterge</button>
+      </div>`;
+  });
+
+  const taskHtml = state.tasks.map((t) => {
+    const trip = state.trips.find((tr) => tr.id === t.tripId);
+    const dueStatus = t.done ? 'none' : getDueStatus(t.dueDate);
+    const dueLabel = getDueLabel(dueStatus);
+    return `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;opacity:${t.done ? 0.6 : 1}">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <input type="checkbox" ${t.done ? 'checked' : ''} data-toggle-task="${esc(t.id)}">
@@ -780,8 +807,13 @@ function renderTasksView() {
         </label>
         <button type="button" class="btn btn-ghost btn-sm" data-delete-task="${esc(t.id)}">Șterge</button>
       </div>`;
-    })
-    .join('');
+  });
+
+  if (deadlineHtml.length === 0 && taskHtml.length === 0) {
+    list.innerHTML = '<div class="card muted small">Nicio sarcină sau scadență.</div>';
+    return;
+  }
+  list.innerHTML = [...deadlineHtml, ...taskHtml].join('');
 }
 
 function renderCustomersView() {
@@ -870,6 +902,16 @@ document.addEventListener('click', async (e) => {
   } else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (trip) openTripModal(trip);
+  } else if (btn.id === 'clone-trip-btn') {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const cloned = cloneMasterTrip(trip, uid('trip'), () => uid('stay'));
+    state.trips.unshift(cloned);
+    state.selectedTripId = cloned.id;
+    state.selectedStayId = cloned.stays[0]?.id || '';
+    saveState();
+    renderAll();
+    showToast('Sejur duplicat ca „Draft”.');
   } else if (btn.id === 'apply-to-trip-btn') {
     openApplyModal();
   } else if (btn.id === 'copy-apply-link-btn') {
@@ -1090,7 +1132,7 @@ document.addEventListener('click', async (e) => {
   } else if (btn.dataset.deleteDeadline) {
     state.supplierDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.id !== btn.dataset.deleteDeadline);
     saveState();
-    renderTripsView();
+    renderAll();
   } else if (btn.dataset.deleteTask) {
     state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.deleteTask);
     saveState();
@@ -1162,7 +1204,7 @@ document.addEventListener('change', (e) => {
     if (sd) {
       sd.done = e.target.checked;
       saveState();
-      renderTripsView();
+      renderAll();
     }
   } else if (e.target.matches('input[type="checkbox"][data-toggle-task]')) {
     const t = state.tasks.find((x) => x.id === e.target.dataset.toggleTask);

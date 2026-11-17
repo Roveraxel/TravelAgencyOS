@@ -332,3 +332,29 @@ export function buildSocialPostText(trip, tripApplications = [], originUrl = 'ht
     `Înscriere rapidă: ${link}`,
   ].join('\n');
 }
+
+/**
+ * Clonează un Master Trip (inclusiv cazări, inventar camere și întrebări de calificare)
+ * ca ediție nouă în status „Draft”, fără aplicanți.
+ */
+export function cloneMasterTrip(trip, newId, makeStayId = (i) => `${newId}-stay-${i + 1}`) {
+  const stays = Array.isArray(trip.stays)
+    ? trip.stays.map((s, idx) => ({
+        ...s,
+        id: makeStayId(idx),
+      }))
+    : [];
+
+  const customQuestions = Array.isArray(trip.customQuestions)
+    ? trip.customQuestions.map((q) => ({ ...q }))
+    : [];
+
+  return {
+    ...trip,
+    id: newId,
+    title: `${trip.title} (Ediție nouă)`,
+    postingStatus: 'Draft',
+    stays,
+    customQuestions,
+  };
+}

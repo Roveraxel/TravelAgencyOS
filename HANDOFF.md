@@ -19,10 +19,11 @@
   - **Two-Way Excel (.csv) Local Sync** (`CSV` tab): bind a local `.csv` file via File System Access API (`showSaveFilePicker`) to both write updates (`Scrie în Excel`) and pull edits made in Excel (`Citește din Excel`).
   - **Server-Side Public Trip API & Local Persistence (`server.mjs`)**: `GET /api/public/trips` (strictly strips `costPerPax`, `fixedCost`, and profit on the server), `POST /api/public/apply` (validates & auto-qualifies applicant server-side), and `GET/PUT /api/state` (`.local-store.json`, gitignored).
   - **Email-to-Deadline / Task Parser (`+ Din Email`)** (`parseInboundEmailText` in `public/template-utils.js`): extracts dates (`DD.MM.YYYY` / `YYYY-MM-DD`) and amounts (`EUR`/`RON`/`USD`) from pasted supplier emails and converts them into a Supplier Deadline or Task in 1 click, plus automatic timeline logging when copying WhatsApp templates.
+  - **Master Trip Cloning & Unified Deadlines** (`cloneMasterTrip`): 1-click `Duplică` button on any Master Trip to clone its stays, room inventory, and qualification questions as a new `Draft` edition, plus unified Supplier Cut-Offs + Tasks view with a live open-count badge on `Sarcini (N)`.
   - **Billing Export & Social Promo Copy** (`buildBillingExportRows`, `buildSocialPostText`): 1-click `Export Facturare (.csv)` (with 30% deposit vs remaining balance and accountant review note for SmartBill/Saga) in `Costuri & Furnizori`, `Postare Social` copy in `Anunț Public`, and quick filter pills (`Toți` / `● OK` / `Avans / Confirmat`) in `Aplicanți`.
   - **GDPR Export & Deletion** (`Clienți` tab): 1-click JSON data export (`Export JSON`) and cascade deletion (`Șterge`) per customer.
   - **Tasks & Due Dates**, **Synthetic Customers**, **CSV Export/Import** (`public/csv-utils.js`), and **JSON Backup/Restore**.
-- Automated tests (`tests/app.test.mjs`) passing via `npm test` (16/16 passing offline).
+- Automated tests (`tests/app.test.mjs`) passing via `npm test` (17/17 passing offline).
 
 ## Next Priorities (for Claude or Antigravity)
 
