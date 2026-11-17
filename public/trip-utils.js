@@ -363,3 +363,54 @@ export function cloneMasterTrip(trip, newId, makeStayId = (i) => `${newId}-stay-
     customQuestions,
   };
 }
+
+/**
+ * Calculează indicatorii globali de Analytics (profit, venituri, ocupare, funnel și calificare).
+ */
+export function computeAnalytics(trips = [], applications = []) {
+  let totalRevenue = 0;
+  let totalCost = 0;
+  let totalProfit = 0;
+  let totalMaxPax = 0;
+  let totalConfirmedPax = 0;
+
+  const byTrip = trips.map((t) => {
+    const m = computeMasterTripMetrics(t, applications);
+    totalRevenue += m.totalRevenue;
+    totalCost += m.totalCost;
+    totalProfit += m.profit;
+    totalMaxPax += Number(t.maxPax || 0);
+    totalConfirmedPax += m.confirmedPax;
+    return {
+      id: t.id,
+      title: t.title,
+      currency: t.currency || 'EUR',
+      revenue: m.totalRevenue,
+      cost: m.totalCost,
+      profit: m.profit,
+      confirmedPax: m.confirmedPax,
+      maxPax: Number(t.maxPax || 0),
+    };
+  });
+
+  const activeApps = applications.filter((a) => a.stage !== 'Respins');
+  const autoQualifiedCount = activeApps.filter((a) => a.qualificationStatus === 'Calificat automat').length;
+  const qualificationRatePct = activeApps.length > 0 ? Math.round((autoQualifiedCount / activeApps.length) * 100) : 0;
+  const occupancyPct = totalMaxPax > 0 ? Math.round((totalConfirmedPax / totalMaxPax) * 100) : 0;
+
+  const funnel = APPLICATION_STAGES.filter((s) => s !== 'Respins').map((stage) => ({
+    stage,
+    count: applications.filter((a) => a.stage === stage).length,
+  }));
+
+  return {
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    occupancyPct,
+    qualificationRatePct,
+    totalApplications: activeApps.length,
+    byTrip,
+    funnel,
+  };
+}

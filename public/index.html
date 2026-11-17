@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TravelAgencyOS — Garlic Trips Demo (Trip-First ATS)</title>
+  <title>GarlicOS — TravelAgencyOS</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -18,6 +18,10 @@
         <button type="button" class="top-nav-btn is-active" data-view="trips" role="tab" aria-selected="true">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ui-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
           Sejururi
+        </button>
+        <button type="button" class="top-nav-btn" data-view="analytics" role="tab" aria-selected="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ui-icon" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Analytics
         </button>
         <button type="button" class="top-nav-btn" data-view="tasks" role="tab" aria-selected="false">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ui-icon" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -35,22 +39,17 @@
     </div>
   </header>
 
-  <!-- VIEW 1: TRIP-FIRST ATS (3-PANE MASTER TRIP WORKSPACE) -->
-  <section id="view-trips" class="view-section ats-shell">
-    <aside class="ats-rail-left no-print" aria-label="Sejururi Master">
-      <div class="rail-header">
-        <span>Sejururi active</span>
-        <span id="trips-count-badge">0</span>
-      </div>
-      <div id="master-trips-list"></div>
-    </aside>
-
-    <main class="ats-center" id="master-trip-center"></main>
-
-    <aside class="ats-rail-right no-print" id="applicant-detail-rail" aria-label="Detalii aplicant selectat"></aside>
+  <!-- VIEW 1: SEJURURI (Selector -> 3-Pane Workspace OR Edit Trip View) -->
+  <section id="view-trips" class="view-section">
+    <div id="trips-home-page" class="page-container"></div>
+    <div id="trip-workspace-page" hidden></div>
+    <div id="trip-edit-page" class="page-container" style="max-width:760px" hidden></div>
   </section>
 
-  <!-- VIEW 2: TASKS & DUE DATES -->
+  <!-- VIEW 2: ANALYTICS -->
+  <section id="view-analytics" class="view-section page-container" hidden></section>
+
+  <!-- VIEW 3: SARCINI & SCADENȚE -->
   <section id="view-tasks" class="view-section page-container" hidden>
     <div class="page-header">
       <div>
@@ -63,102 +62,6 @@
       </div>
     </div>
     <div id="tasks-list" class="stack"></div>
-  </section>
-
-  <!-- VIEW 3: CUSTOMERS (SYNTHETIC) -->
-  <section id="view-customers" class="view-section page-container" hidden>
-    <div class="page-header">
-      <div>
-        <h1>Clienți (date demo sintetice)</h1>
-        <p class="muted small">Istoricul aplicațiilor la sejururi per client.</p>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Nume</th>
-            <th>Canal</th>
-            <th>Sejururi aplicate</th>
-            <th>Notă</th>
-            <th>Acțiuni</th>
-          </tr>
-        </thead>
-        <tbody id="customers-tbody"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- VIEW 4: CSV IMPORT / EXPORT & JSON BACKUP -->
-  <section id="view-csv" class="view-section page-container" hidden>
-    <div class="page-header">
-      <div>
-        <h1>Import / Export CSV &amp; Backup</h1>
-        <p class="muted small">Export UTF-8 BOM compatibil Excel sau import cereri cu validare per rând.</p>
-      </div>
-    </div>
-
-    <div class="two-col">
-      <div class="card">
-        <h2>Export CSV &amp; Backup local JSON</h2>
-        <div class="form-actions" style="margin-top:12px">
-          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="trips">Exportă Sejururi (.csv)</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="applications">Exportă Aplicanți (.csv)</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-export-csv="customers">Exportă Clienți (.csv)</button>
-        </div>
-        <hr class="divider">
-        <div class="form-actions">
-          <button type="button" id="link-excel-btn" class="btn btn-primary btn-sm">Leagă fișier Excel (.csv)</button>
-          <button type="button" id="sync-excel-btn" class="btn btn-secondary btn-sm" disabled>Scrie în Excel</button>
-          <button type="button" id="pull-excel-btn" class="btn btn-secondary btn-sm" disabled>Citește din Excel</button>
-          <span id="excel-sync-status" class="muted small">Nelegat</span>
-        </div>
-        <hr class="divider">
-        <div class="form-actions">
-          <button type="button" id="backup-json-btn" class="btn btn-secondary btn-sm">Descarcă backup JSON</button>
-          <label class="btn btn-ghost btn-sm" for="restore-json-input">Restaurează din JSON</label>
-          <input id="restore-json-input" type="file" accept=".json,application/json" hidden>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Import Aplicanți / Cereri din CSV</h2>
-        <p class="muted small">Coloane: <code>client</code>*, <code>destinatie</code>*, <code>data_plecare</code>, <code>buget</code>, <code>moneda</code>.</p>
-        <div class="form-stack" style="margin-top:10px">
-          <input id="csv-file-input" type="file" accept=".csv,text/csv" class="input">
-          <div class="form-actions">
-            <select id="csv-duplicate-mode" class="input" style="width:auto">
-              <option value="skip">Sari peste duplicate</option>
-              <option value="overwrite">Actualizează existent</option>
-              <option value="create">Importă ca nou</option>
-            </select>
-            <button type="button" id="csv-sample-btn" class="btn btn-ghost btn-sm">Exemplu CSV</button>
-            <button type="button" id="csv-commit-btn" class="btn btn-primary btn-sm" disabled>Importă valide</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="csv-preview-card" class="card" style="margin-top:16px" hidden>
-      <div class="page-header" style="margin-bottom:10px">
-        <h2 style="margin:0;font-size:1rem">Previzualizare CSV</h2>
-        <span id="csv-preview-summary" class="muted small"></span>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Linie</th>
-              <th>Client</th>
-              <th>Destinație</th>
-              <th>Buget</th>
-              <th>Validare</th>
-            </tr>
-          </thead>
-          <tbody id="csv-preview-tbody"></tbody>
-        </table>
-      </div>
-    </div>
   </section>
 
   <!-- MODAL REUTILIZABIL -->

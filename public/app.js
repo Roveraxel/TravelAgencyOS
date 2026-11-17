@@ -1,36 +1,27 @@
-import {
-  buildCsv,
-  parseCsvText,
-  validateEnquiryImportRows,
-  VALID_CURRENCIES,
-} from '/csv-utils.js';
+import { buildCsv, VALID_CURRENCIES } from '/csv-utils.js';
 import { getDueStatus, getDueLabel } from '/date-utils.js';
 import {
   APPLICATION_STAGES,
   ROOM_TYPES,
   POSTING_STATUSES,
-  DEADLINE_KINDS,
   computeMasterTripMetrics,
   autoQualifyApplication,
   buildPublicTripPostingView,
   analyzeRooming,
   buildHotelRoomingRows,
-  buildGeneratedDocumentText,
-  buildBillingExportRows,
-  buildSocialPostText,
-  cloneMasterTrip,
+  computeAnalytics,
 } from '/trip-utils.js';
 import { MESSAGE_TEMPLATES, renderMessageTemplate, parseInboundEmailText } from '/template-utils.js';
 import { icon, channelIcon } from '/icons.js';
 
-const STORAGE_KEY = 'travelagencyos_garlic_v2';
+const STORAGE_KEY = 'travelagencyos_garlic_v3';
 
 function createSeedState() {
   return {
     selectedTripId: 'trip-1',
     selectedStayId: 'stay-1',
     selectedAppId: 'app-1',
-    activeCenterTab: 'applicants',
+    tripsPageMode: 'home', // 'home' | 'workspace' | 'edit'
     trips: [
       {
         id: 'trip-1',
@@ -44,26 +35,9 @@ function createSeedState() {
         fixedCost: 400,
         currency: 'EUR',
         postingStatus: 'Publicat',
-        style: 'Expediție grup mic, snowmobile, observare natură',
-        publicSummary: '7 zile în Arctica cu grup restrâns (max 10 persoane), tură cu snowmobilul și cabană nordică.',
-        highlights: [
-          ['Ziua 1–2', 'Sosire Longyearbyen, cazare Basecamp & briefing polar'],
-          ['Ziua 3–4', 'Expediție cu snowmobilul spre ghețarii de est'],
-          ['Ziua 5–6', 'Peștera de gheață & seară nordică la cabană'],
-          ['Ziua 7', 'Zbor retur spre casă'],
-        ],
-        faqs: [
-          { id: 'f-1', q: 'Am nevoie de experiență pe snowmobil?', a: 'Nu, dar este necesar permis categoria B valabil.' },
-          { id: 'f-2', q: 'Pot veni singur(ă)?', a: 'Da, poți alege Twin (Partajabil) ca să împarți camera fără supliment Single.' },
-        ],
-        paymentTerms: 'Avans 30% la confirmare, rest cu 30 de zile înainte de plecare [DE CONFIRMAT].',
-        includedText: 'Cazare 7 nopți, ghid însoțitor, tură snowmobil, transfer aeroport',
-        excludedText: 'Zbor internațional, echipament termic personal, asigurare',
-        customQuestions: [
-          { id: 'q-1', label: 'Rezistență la temperaturi sub -15°C și drumeții?', requiredAnswer: 'Da' },
-          { id: 'q-2', label: 'Pașaport valabil la data călătoriei?', requiredAnswer: 'Da' },
-        ],
-        notes: 'Include ghid local și transfer aeroport. Echipament polar [DE CONFIRMAT].',
+        publicSummary:
+          '7 zile în Arctica cu grup restrâns (max 10 persoane): snowmobil spre ghețarii de est, peștera de gheață și cabană nordică. Include cazare 7 nopți, ghid însoțitor și transfer aeroport.',
+        images: [],
         stays: [
           { id: 'stay-1', name: 'Basecamp Longyearbyen', nights: 7, doubleRooms: 4, singleRooms: 2 },
         ],
@@ -80,19 +54,9 @@ function createSeedState() {
         fixedCost: 300,
         currency: 'RON',
         postingStatus: 'Publicat',
-        style: 'Drumeții ușoare, pensiuni locale, cină tradițională',
-        publicSummary: 'Weekend prelungit pe poteci din Maramureș, cazare autentică în Breb și mese locale.',
-        highlights: [
-          ['Ziua 1', 'Sosire în Breb, cină tradițională la pensiune'],
-          ['Ziua 2', 'Drumeție Creasta Cocoșului & atelier meșteșuguri'],
-          ['Ziua 3–4', 'Mocănița & întoarcere spre Timișoara / Cluj'],
-        ],
-        includedText: 'Cazare 3 nopți cu demipensiune, ghid montan, transport microbuz',
-        excludedText: 'Mesele de prânz, bilete intrare obiective',
-        customQuestions: [
-          { id: 'q-3', label: 'Experiență minimă drumeții 3–4h/zi?', requiredAnswer: 'Da' },
-        ],
-        notes: 'Plecări din Timișoara / Cluj.',
+        publicSummary:
+          'Weekend prelungit pe poteci din Maramureș: drumeție Creasta Cocoșului, Mocănița și cazare autentică cu demipensiune în Breb.',
+        images: [],
         stays: [
           { id: 'stay-2', name: 'Pensiunea Breb', nights: 3, doubleRooms: 5, singleRooms: 2 },
         ],
@@ -109,19 +73,9 @@ function createSeedState() {
         fixedCost: 600,
         currency: 'EUR',
         postingStatus: 'Publicat',
-        style: 'Grup de prieteni, street food, temple Angkor',
-        publicSummary: 'Circuit de 14 zile din nordul Vietnamului până la templele Angkor Wat.',
-        highlights: [
-          ['Zilele 1–4', 'Hanoi Old Quarter, street food tour & Ninh Binh'],
-          ['Zilele 5–6', 'Croazieră 2 nopți în Ha Long Bay'],
-          ['Zilele 7–14', 'Zbor spre Siem Reap & răsărit la Angkor Wat'],
-        ],
-        includedText: 'Cazare 4*, croazieră Ha Long Bay 2n, transferuri interne, ghid',
-        excludedText: 'Zbor intercontinental, taxe de viză',
-        customQuestions: [
-          { id: 'q-4', label: 'Pașaport valabil minim 6 luni de la retur?', requiredAnswer: 'Da' },
-        ],
-        notes: 'Zbor internațional [DE CONFIRMAT].',
+        publicSummary:
+          'Circuit de 14 zile din nordul Vietnamului până la templele Angkor Wat: street food în Hanoi, croazieră 2 nopți în Ha Long Bay și răsărit la Angkor.',
+        images: [],
         stays: [
           { id: 'stay-3', name: 'Hanoi Boutique', nights: 4, doubleRooms: 5, singleRooms: 2 },
           { id: 'stay-4', name: 'Ha Long Cruise', nights: 2, doubleRooms: 5, singleRooms: 1 },
@@ -130,10 +84,10 @@ function createSeedState() {
       },
     ],
     customers: [
-      { id: 'cust-1', name: 'Radu Demo', channel: 'WhatsApp', note: 'A mai fost în Islanda (date demo)' },
-      { id: 'cust-2', name: 'Elena & Mihai Demo', channel: 'Instagram', note: 'Preferă grupuri mici (date demo)' },
-      { id: 'cust-3', name: 'Vlad Demo', channel: 'Email', note: 'Întreabă de rate (date demo)' },
-      { id: 'cust-4', name: 'Ana & Mara Demo', channel: 'WhatsApp', note: 'Drumeții de weekend (date demo)' },
+      { id: 'cust-1', name: 'Radu Demo', channel: 'WhatsApp', note: 'A mai fost în Islanda' },
+      { id: 'cust-2', name: 'Elena & Mihai Demo', channel: 'Instagram', note: 'Preferă grupuri mici' },
+      { id: 'cust-3', name: 'Vlad Demo', channel: 'Email', note: 'Întreabă de rate' },
+      { id: 'cust-4', name: 'Ana & Mara Demo', channel: 'WhatsApp', note: 'Drumeții de weekend' },
     ],
     applications: [
       {
@@ -200,27 +154,17 @@ function createSeedState() {
     supplierDeadlines: [
       { id: 'sd-1', tripId: 'trip-1', supplierName: 'Basecamp Longyearbyen', kind: 'Rooming cut-off', dueDate: '2026-11-18', amount: 0, currency: 'EUR', done: false },
       { id: 'sd-2', tripId: 'trip-1', supplierName: 'Arctic Snowmobile DMC', kind: 'Avans furnizor', dueDate: '2026-11-22', amount: 1800, currency: 'EUR', done: false },
-      { id: 'sd-3', tripId: 'trip-3', supplierName: 'Ha Long Bay Cruise', kind: 'Avans furnizor', dueDate: '2026-12-01', amount: 1200, currency: 'EUR', done: false },
     ],
     tasks: [
       { id: 'tsk-1', title: 'Confirmă echipament polar Svalbard', dueDate: '2026-11-18', done: false, tripId: 'trip-1' },
       { id: 'tsk-2', title: 'Follow-up Ana & Mara pentru Maramureș', dueDate: '2026-11-20', done: false, tripId: 'trip-2' },
     ],
-    documents: [
-      { id: 'doc-1', tripId: 'trip-1', title: 'Itinerariu Svalbard 2027.pdf', kind: 'Itinerariu', audience: 'Client', version: 2, sentLog: ['15 nov · Trimis grup WhatsApp (v2)'], updatedAt: '2026-11-15' },
-      { id: 'doc-2', tripId: 'trip-1', title: 'Rooming List Hotel Polar.csv', kind: 'Rooming', audience: 'Furnizor', version: 1, sentLog: ['14 nov · Trimis la Hotel (v1)'], updatedAt: '2026-11-14' },
-      { id: 'doc-3', tripId: 'trip-2', title: 'Program Maramureș 4 zile.pdf', kind: 'Itinerariu', audience: 'Client', version: 1, sentLog: [], updatedAt: '2026-11-12' },
-    ],
-    offerDrafts: {},
   };
 }
 
 let state = loadState();
 let activeModal = null;
-let stagedCsvRows = [];
-let linkedExcelHandle = null;
 let selectedTemplateId = MESSAGE_TEMPLATES[0].id;
-let applicantFilter = 'all';
 
 function loadState() {
   try {
@@ -231,14 +175,12 @@ function loadState() {
       selectedTripId: parsed.selectedTripId || parsed.trips?.[0]?.id || '',
       selectedStayId: parsed.selectedStayId || '',
       selectedAppId: parsed.selectedAppId || '',
-      activeCenterTab: parsed.activeCenterTab || 'applicants',
+      tripsPageMode: parsed.tripsPageMode || 'home',
       trips: Array.isArray(parsed.trips) ? parsed.trips : [],
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
       applications: Array.isArray(parsed.applications) ? parsed.applications : [],
       supplierDeadlines: Array.isArray(parsed.supplierDeadlines) ? parsed.supplierDeadlines : [],
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      documents: Array.isArray(parsed.documents) ? parsed.documents : [],
-      offerDrafts: parsed.offerDrafts && typeof parsed.offerDrafts === 'object' ? parsed.offerDrafts : {},
     };
   } catch {
     return createSeedState();
@@ -277,12 +219,8 @@ function getCustomer(id) {
 
 function qualDotHtml(status, reasons = []) {
   const tip = esc((reasons || []).join('; '));
-  if (status === 'Calificat automat') {
-    return `<span class="qual-dot is-ok" title="${tip}">OK</span>`;
-  }
-  if (status === 'Buget sub prag') {
-    return `<span class="qual-dot is-low" title="${tip}">Buget</span>`;
-  }
+  if (status === 'Calificat automat') return `<span class="qual-dot is-ok" title="${tip}">OK</span>`;
+  if (status === 'Buget sub prag') return `<span class="qual-dot is-low" title="${tip}">Buget</span>`;
   return `<span class="qual-dot is-warn" title="${tip}">Verifică</span>`;
 }
 
@@ -311,519 +249,408 @@ function switchView(viewName) {
 }
 
 document.querySelectorAll('.top-nav-btn').forEach((btn) => {
-  btn.addEventListener('click', () => switchView(btn.dataset.view));
+  btn.addEventListener('click', () => {
+    if (btn.dataset.view === 'trips') {
+      state.tripsPageMode = 'home';
+    }
+    switchView(btn.dataset.view);
+  });
 });
 
 /* ---------------- RENDERING ---------------- */
 
 function renderAll() {
-  if (!document.getElementById('master-trips-list')) return;
-  renderTripsView();
+  if (!document.getElementById('trips-home-page')) return;
+  renderTripsSection();
+  renderAnalyticsView();
   renderTasksView();
-  renderCustomersView();
 }
 
-function renderTripsView() {
-  const listEl = document.getElementById('master-trips-list');
-  document.getElementById('trips-count-badge').textContent = String(state.trips.length);
+function renderTripsSection() {
+  const homeEl = document.getElementById('trips-home-page');
+  const wsEl = document.getElementById('trip-workspace-page');
+  const editEl = document.getElementById('trip-edit-page');
 
-  if (state.trips.length === 0) {
-    listEl.innerHTML = '<div class="muted small" style="padding:14px">Niciun sejur creat.</div>';
-    document.getElementById('master-trip-center').innerHTML =
-      '<div class="card">Creați primul Master Trip cu „+ Sejur”.</div>';
-    document.getElementById('applicant-detail-rail').innerHTML = '';
-    return;
+  homeEl.hidden = state.tripsPageMode !== 'home';
+  wsEl.hidden = state.tripsPageMode !== 'workspace';
+  editEl.hidden = state.tripsPageMode !== 'edit';
+
+  if (state.tripsPageMode === 'home') {
+    renderTripsHome(homeEl);
+  } else if (state.tripsPageMode === 'workspace') {
+    renderTripWorkspace(wsEl);
+  } else {
+    renderTripEditPage(editEl);
   }
+}
 
-  let trip = state.trips.find((t) => t.id === state.selectedTripId);
+/* 1. MAIN PAGE: SELECT A TRIP */
+function renderTripsHome(container) {
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Sejururi (Master Trips)</h1>
+        <p class="muted small">Selectează un sejur pentru a gestiona clienții, camerele și comunicarea.</p>
+      </div>
+    </div>
+    <div class="pub-board-grid">
+      ${
+        state.trips.length === 0
+          ? '<div class="card muted">Niciun sejur. Click „+ Sejur” în bara de sus.</div>'
+          : state.trips
+              .map((t) => {
+                const m = computeMasterTripMetrics(t, state.applications);
+                const coverImg = Array.isArray(t.images) && t.images[0] ? t.images[0] : '';
+                const coverStyle = coverImg
+                  ? `style="background-image:linear-gradient(rgba(15,35,28,0.52),rgba(15,35,28,0.7)),url('${esc(coverImg)}');background-size:cover;background-position:center"`
+                  : '';
+                return `
+                <article class="pub-trip-card">
+                  <div class="pub-trip-cover theme-${esc(t.coverTheme || 'forest')}" ${coverStyle}>
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;opacity:0.9;margin-bottom:4px">
+                      <span>${esc(t.destination)}</span>
+                      <span class="badge" style="background:rgba(255,255,255,0.2);color:#fff">${esc(t.postingStatus || 'Publicat')}</span>
+                    </div>
+                    <strong style="font-size:1.15rem;display:block">${esc(t.title)}</strong>
+                    <div style="font-size:0.8rem;opacity:0.88;margin-top:4px">${esc(t.dates)}</div>
+                  </div>
+                  <div class="pub-trip-body">
+                    <div class="metric-strip" style="padding:8px 10px;gap:12px">
+                      <div class="metric-item"><span>Locuri</span><strong>${m.confirmedPax}/${t.maxPax}</strong></div>
+                      <div class="metric-item"><span>Aplicanți</span><strong>${m.applicantsCount}</strong></div>
+                      <div class="metric-item is-profit"><span>Profit</span><strong>${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, t.currency)}</strong></div>
+                    </div>
+                    <div class="header-actions" style="margin-top:auto;padding-top:8px">
+                      <button type="button" class="btn btn-primary btn-sm" data-open-trip="${esc(t.id)}">Deschide →</button>
+                      <button type="button" class="btn btn-secondary btn-sm" data-edit-trip="${esc(t.id)}">${icon('edit')} Editează</button>
+                    </div>
+                  </div>
+                </article>`;
+              })
+              .join('')
+      }
+    </div>
+  `;
+}
+
+/* 2. INSIDE TRIP: LEFT CLIENTS | CENTER CLIENT DETAILS | RIGHT COMMUNICATION */
+function renderTripWorkspace(container) {
+  const trip = state.trips.find((t) => t.id === state.selectedTripId) || state.trips[0];
   if (!trip) {
-    trip = state.trips[0];
-    state.selectedTripId = trip.id;
+    state.tripsPageMode = 'home';
+    return renderTripsHome(container);
   }
+  state.selectedTripId = trip.id;
 
-  listEl.innerHTML = state.trips
-    .map((t) => {
-      const m = computeMasterTripMetrics(t, state.applications);
-      const active = t.id === trip.id ? 'is-active' : '';
-      const pStatus = t.postingStatus || 'Publicat';
-      return `
-      <button type="button" class="trip-list-item ${active}" data-select-trip="${esc(t.id)}">
-        <div class="trip-item-top">
-          <span>${esc(t.title)}</span>
-          <span class="profit-text">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, t.currency)}</span>
-        </div>
-        <div class="trip-item-meta">${esc(t.dates)} · ${m.confirmedPax}/${t.maxPax} pax · ${esc(pStatus)}</div>
-      </button>`;
-    })
-    .join('');
-
-  renderMasterTripCenter(trip);
-  renderApplicantRightRail(trip);
-}
-
-function renderMasterTripCenter(trip) {
-  const centerEl = document.getElementById('master-trip-center');
   const m = computeMasterTripMetrics(trip, state.applications);
   const tripApps = state.applications.filter((a) => a.tripId === trip.id);
-
   if (!tripApps.some((a) => a.id === state.selectedAppId)) {
     state.selectedAppId = tripApps[0]?.id || '';
   }
 
-  let tabBodyHtml = '';
-  if (state.activeCenterTab === 'applicants') {
-    const filteredApps = tripApps.filter((a) => {
-      if (applicantFilter === 'ok') return a.qualificationStatus === 'Calificat automat';
-      if (applicantFilter === 'confirmed') return ['Avans achitat', 'Confirmat'].includes(a.stage);
-      return true;
-    });
-    tabBodyHtml = `
-      <div class="header-actions no-print" style="margin-bottom:8px">
-        <button type="button" class="btn btn-sm ${applicantFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="all">Toți (${tripApps.length})</button>
-        <button type="button" class="btn btn-sm ${applicantFilter === 'ok' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="ok">● OK</button>
-        <button type="button" class="btn btn-sm ${applicantFilter === 'confirmed' ? 'btn-primary' : 'btn-secondary'}" data-app-filter="confirmed">Avans / Confirmat</button>
+  const stays =
+    Array.isArray(trip.stays) && trip.stays.length > 0
+      ? trip.stays
+      : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
+  let activeStay = stays.find((s) => s.id === state.selectedStayId);
+  if (!activeStay) {
+    activeStay = stays[0];
+    state.selectedStayId = activeStay.id;
+  }
+
+  const app = tripApps.find((a) => a.id === state.selectedAppId);
+  const cust = app ? getCustomer(app.customerId) : null;
+  const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
+  const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
+
+  let centerHtml = '<div class="card muted">Selectează un client din stânga sau adaugă unul cu „+ Aplică”.</div>';
+  if (app && cust) {
+    const pax = Number(app.pax || 1);
+    const total = pax * Number(trip.pricePerPax || 0);
+    const profit = pax * (Number(trip.pricePerPax || 0) - Number(trip.costPerPax || 0));
+    const slot = app.roomByStay?.[activeStay.id] || app;
+    const rType = slot.roomType || app.roomType || 'Double';
+    const rCode = slot.roomCode || app.roomCode || 'Neasignat';
+
+    centerHtml = `
+      <div class="card">
+        <div class="master-header">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <h2 style="margin:0;font-size:1.25rem">${esc(cust.name)}</h2>
+              ${qualDotHtml(app.qualificationStatus, app.qualificationReasons)}
+            </div>
+            <p class="muted small" style="display:flex;align-items:center;gap:6px;margin-top:3px">
+              ${channelIcon(cust.channel)} ${esc(cust.channel)} · Aplicat: ${esc(app.appliedAt || '-')}
+            </p>
+          </div>
+          <div class="header-actions">
+            <select class="inline-select" data-app-stage="${esc(app.id)}" aria-label="Etapă client">
+              ${APPLICATION_STAGES.map((s) => `<option value="${s}" ${app.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+            <button type="button" class="btn btn-primary btn-sm" id="advance-stage-btn">${icon('arrowRight')} Etapă</button>
+          </div>
+        </div>
+
+        <div class="metric-strip" style="margin-bottom:14px">
+          <div class="metric-item"><span>Pax</span><strong>${pax}</strong></div>
+          <div class="metric-item"><span>Buget/pax</span><strong>${fmtMoney(app.budgetPerPax, trip.currency)}</strong></div>
+          <div class="metric-item"><span>Total</span><strong>${fmtMoney(total, trip.currency)}</strong></div>
+          <div class="metric-item is-profit"><span>Profit</span><strong>+${fmtMoney(profit, trip.currency)}</strong></div>
+          <label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="client-deposit-toggle" ${app.depositPaid ? 'checked' : ''}> Avans 30%
+          </label>
+        </div>
+
+        <div class="small muted">${esc((app.qualificationReasons || []).join(' · '))}</div>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Status</th>
-              <th>Pax</th>
-              <th>Total</th>
-              <th>Etapă</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              filteredApps.length === 0
-                ? '<tr><td colspan="5" class="muted">Niciun aplicant în acest filtru.</td></tr>'
-                : filteredApps
-                    .map((a) => {
-                      const cust = getCustomer(a.customerId);
-                      const pax = Number(a.pax || 1);
-                      const total = pax * Number(trip.pricePerPax || 0);
-                      const selectedCls = a.id === state.selectedAppId ? 'is-selected' : '';
-                      return `
-                      <tr class="${selectedCls}" data-select-app="${esc(a.id)}">
-                        <td><strong>${esc(cust.name)}</strong><div class="muted small" style="display:flex;align-items:center;gap:4px">${channelIcon(cust.channel)} ${esc(cust.channel)}</div></td>
-                        <td>${qualDotHtml(a.qualificationStatus, a.qualificationReasons)}</td>
-                        <td>${pax}</td>
-                        <td><strong>${fmtMoney(total, trip.currency)}</strong></td>
-                        <td>
-                          <select class="inline-select" data-app-stage="${esc(a.id)}" aria-label="Etapă ${esc(cust.name)}">
-                            ${APPLICATION_STAGES.map(
-                              (s) => `<option value="${s}" ${a.stage === s ? 'selected' : ''}>${s}</option>`
-                            ).join('')}
-                          </select>
-                        </td>
-                      </tr>`;
-                    })
-                    .join('')
-            }
-          </tbody>
-        </table>
-      </div>`;
-  } else if (state.activeCenterTab === 'rooms') {
-    const stays =
-      Array.isArray(trip.stays) && trip.stays.length > 0
-        ? trip.stays
-        : [{ id: `stay-${trip.id}`, name: trip.destination, nights: 1, doubleRooms: 4, singleRooms: 1 }];
-    let activeStay = stays.find((s) => s.id === state.selectedStayId);
-    if (!activeStay) {
-      activeStay = stays[0];
-      state.selectedStayId = activeStay.id;
-    }
 
-    const roomSummary = analyzeRooming(tripApps, state.customers, activeStay);
-    const roomCodes = ['Neasignat', 'Cam. 1', 'Cam. 2', 'Cam. 3', 'Cam. 4', 'Cam. 5', 'Cam. 6', 'Cam. 7', 'Cam. 8'];
-    const isFirstStay = stays[0].id === activeStay.id;
-
-    tabBodyHtml = `
       <div class="card">
         <div class="master-header" style="margin-bottom:10px">
+          <div>
+            <h3 style="margin:0;font-size:0.98rem">${icon('bed')} Cazare &amp; Cameră</h3>
+            <div class="muted small">
+              Double/Twin: ${roomSummary.usedDouble}/${activeStay.doubleRooms} · Single: ${roomSummary.usedSingle}/${activeStay.singleRooms}
+              ${roomSummary.unpairedShareCount > 0 ? ` · <span style="color:var(--amber-text);font-weight:600">${roomSummary.unpairedShareCount} caută coleg(ă)</span>` : ''}
+            </div>
+          </div>
           <div class="header-actions">
-            ${stays
-              .map(
-                (s) =>
-                  `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`
-              )
-              .join('')}
             <button type="button" class="btn btn-ghost btn-sm" id="add-stay-btn">+ Cazare</button>
-          </div>
-          <div class="header-actions">
-            ${!isFirstStay ? '<button type="button" class="btn btn-ghost btn-sm" id="copy-stay1-btn">Copiază din cazarea 1</button>' : ''}
-            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">Export Rooming (Hotel)</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="export-rooming-btn">${icon('download')} Rooming Hotel</button>
           </div>
         </div>
 
-        <div class="metric-strip" style="margin-bottom:12px">
-          <div class="metric-item"><span>Double/Twin</span><strong>${roomSummary.usedDouble}/${activeStay.doubleRooms}</strong></div>
-          <div class="metric-item"><span>Single</span><strong>${roomSummary.usedSingle}/${activeStay.singleRooms}</strong></div>
-          ${
-            roomSummary.unpairedShareCount > 0
-              ? `<div class="metric-item"><span style="color:var(--amber-text)">Caută coleg(ă)</span><strong>${roomSummary.unpairedShareCount}</strong></div>`
-              : ''
-          }
-          ${
-            roomSummary.inventoryWarnings.length > 0
-              ? `<div class="metric-item"><strong style="color:var(--danger)">${esc(roomSummary.inventoryWarnings.join(' · '))}</strong></div>`
-              : ''
-          }
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Pax</th>
-                <th>Tip cameră</th>
-                <th>Cameră</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                tripApps.filter((a) => a.stage !== 'Respins').length === 0
-                  ? '<tr><td colspan="4" class="muted">Niciun participant activ.</td></tr>'
-                  : tripApps
-                      .filter((a) => a.stage !== 'Respins')
-                      .map((a) => {
-                        const cust = getCustomer(a.customerId);
-                        const slot = a.roomByStay?.[activeStay.id] || a;
-                        const rType = slot.roomType || a.roomType || 'Double';
-                        const rCode = slot.roomCode || a.roomCode || 'Neasignat';
-                        return `
-                        <tr>
-                          <td><strong>${esc(cust.name)}</strong></td>
-                          <td>${a.pax}</td>
-                          <td>
-                            <select class="inline-select" data-room-type="${esc(a.id)}">
-                              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
-                            </select>
-                          </td>
-                          <td>
-                            <select class="inline-select" data-room-code="${esc(a.id)}">
-                              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
-                            </select>
-                          </td>
-                        </tr>`;
-                      })
-                      .join('')
-              }
-            </tbody>
-          </table>
-        </div>
         ${
-          roomSummary.rooms.some((r) => r.alert)
-            ? `<div class="stack" style="margin-top:10px">${roomSummary.rooms
-                .filter((r) => r.alert)
-                .map((r) => `<div class="small" style="color:var(--amber-text)"><strong>${esc(r.roomCode)}</strong> (${esc(r.guests.join(' + '))}): ${esc(r.alert)}</div>`)
-                .join('')}</div>`
+          stays.length > 1
+            ? `<div class="header-actions" style="margin-bottom:12px">
+                ${stays.map((s) => `<button type="button" class="btn btn-sm ${s.id === activeStay.id ? 'btn-primary' : 'btn-secondary'}" data-select-stay="${esc(s.id)}">${esc(s.name)} (${s.nights}n)</button>`).join('')}
+              </div>`
             : ''
         }
-      </div>`;
-  } else if (state.activeCenterTab === 'posting') {
-    const pub = buildPublicTripPostingView(trip, state.applications);
-    const questions = pub.customQuestions;
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:12px">
-          <div>
-            <h2 style="margin:0;font-size:1rem">Anunț Public Sejur (ATS Job Posting)</h2>
-            <p class="muted small"> Pagina publică nu expune niciodată costurile furnizorilor sau marja agenției.</p>
-          </div>
-          <div class="header-actions">
-            <select id="posting-status-select" class="inline-select" aria-label="Status anunț">
-              ${POSTING_STATUSES.map((st) => `<option value="${st}" ${(trip.postingStatus || 'Publicat') === st ? 'selected' : ''}>${st}</option>`).join('')}
+
+        <div class="two-col-tight">
+          <div class="field">
+            <label for="cd-room-type">Tip cameră</label>
+            <select id="cd-room-type" class="input" data-room-type="${esc(app.id)}">
+              ${ROOM_TYPES.map((rt) => `<option value="${rt}" ${rType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
             </select>
-            <button type="button" class="btn btn-secondary btn-sm" id="copy-social-post-btn">${icon('chat')} Postare Social</button>
-            <a href="/?apply=${encodeURIComponent(trip.id)}" class="btn btn-secondary btn-sm">Deschide pagina →</a>
-          </div>
-        </div>
-
-        <form id="posting-details-form" class="form-stack">
-          <div class="field">
-            <label for="p-summary">Rezumat public</label>
-            <textarea id="p-summary" name="publicSummary" rows="2" class="input">${esc(pub.publicSummary)}</textarea>
-          </div>
-          <div class="two-col-tight">
-            <div class="field">
-              <label for="p-cover">Cover Image URL (opțional)</label>
-              <input id="p-cover" name="coverImageUrl" class="input" placeholder="https://..." value="${esc(pub.coverImageUrl)}">
-            </div>
-            <div class="field">
-              <label for="p-theme">Temă vizuală</label>
-              <select id="p-theme" name="coverTheme" class="input">
-                ${['arctic', 'forest', 'tropical'].map((th) => `<option value="${th}" ${pub.coverTheme === th ? 'selected' : ''}>${th}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="two-col-tight">
-            <div class="field">
-              <label for="p-inc">Inclus în tarif</label>
-              <input id="p-inc" name="includedText" class="input" value="${esc(pub.includedText)}">
-            </div>
-            <div class="field">
-              <label for="p-exc">Neinclus</label>
-              <input id="p-exc" name="excludedText" class="input" value="${esc(pub.excludedText)}">
-            </div>
           </div>
           <div class="field">
-            <label for="p-pay">Condiții plată &amp; anulare</label>
-            <input id="p-pay" name="paymentTerms" class="input" value="${esc(pub.paymentTerms)}">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Salvează CMS</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-day-btn">+ Zi program</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-faq-btn">+ FAQ</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-question-btn">+ Criteriu</button>
-          </div>
-        </form>
-
-        <hr class="divider">
-        <div class="small muted" style="margin-bottom:8px;font-weight:600">Program pe zile (${pub.highlights.length})</div>
-        ${
-          pub.highlights.length === 0
-            ? '<p class="muted small">Nicio zi adăugată.</p>'
-            : `<div class="stack" style="margin-bottom:14px">${pub.highlights
-                .map(
-                  ([day, text], idx) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <span class="small"><strong>${esc(day)}:</strong> ${esc(text)}</span>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-day="${idx}">✕</button>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-
-        <div class="small muted" style="margin-bottom:8px;font-weight:600">FAQ (${pub.faqs.length})</div>
-        ${
-          pub.faqs.length === 0
-            ? '<p class="muted small" style="margin-bottom:14px">Niciun FAQ adăugat.</p>'
-            : `<div class="stack" style="margin-bottom:14px">${pub.faqs
-                .map(
-                  (f) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <span class="small"><strong>${esc(f.q)}</strong> — ${esc(f.a)}</span>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-faq="${esc(f.id)}">✕</button>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-        <div class="small muted" style="margin-bottom:8px;font-weight:600">Criterii de auto-calificare la înscriere (${questions.length})</div>
-        ${
-          questions.length === 0
-            ? '<p class="muted small">Doar verificare automată de buget și locuri.</p>'
-            : `<div class="stack">${questions
-                .map(
-                  (q) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <span class="small"><strong>${esc(q.label)}</strong> · Răspuns cerut: <code>${esc(q.requiredAnswer || 'Da')}</code></span>
-                  <button type="button" class="btn btn-ghost btn-sm" data-delete-question="${esc(q.id)}">✕</button>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-      </div>`;
-  } else if (state.activeCenterTab === 'docs') {
-    const tripDocs = (state.documents || []).filter((d) => d.tripId === trip.id);
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Documente &amp; Istoric</h2>
-          <div class="header-actions">
-            <button type="button" class="btn btn-secondary btn-sm" id="gen-client-doc-btn">Generează Itinerariu (Client)</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="gen-supplier-doc-btn">Generează Borderou (Furnizor)</button>
-            <button type="button" class="btn btn-primary btn-sm" id="add-doc-btn">+ Document</button>
+            <label for="cd-room-code">Alocare cameră (${esc(activeStay.name)})</label>
+            <select id="cd-room-code" class="input" data-room-code="${esc(app.id)}">
+              ${roomCodes.map((rc) => `<option value="${rc}" ${rCode === rc ? 'selected' : ''}>${rc}</option>`).join('')}
+            </select>
           </div>
         </div>
-        ${
-          tripDocs.length === 0
-            ? '<p class="muted small">Niciun document atașat.</p>'
-            : `<div class="stack">${tripDocs
-                .map(
-                  (d) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-                  <div>
-                    <strong>${esc(d.title)}</strong>
-                    <span class="badge">${esc(d.audience || 'Client')}</span>
-                    <span class="badge badge-accent">v${d.version || 1}</span>
-                    <div class="muted small">${esc(d.kind)} · ${d.sentLog && d.sentLog[0] ? esc(d.sentLog[0]) : 'Netrimis'}</div>
-                  </div>
-                  <div class="header-actions">
-                    ${d.content ? `<button type="button" class="btn btn-secondary btn-sm" data-open-doc="${esc(d.id)}">Deschide PDF</button>` : ''}
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-bump="${esc(d.id)}">+v</button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-doc-sent="${esc(d.id)}">Trimis</button>
-                    <button type="button" class="btn btn-ghost btn-sm" data-delete-doc="${esc(d.id)}">✕</button>
-                  </div>
-                </div>`
-                )
-                .join('')}</div>`
-        }
-      </div>`;
-  } else if (state.activeCenterTab === 'costs') {
-    const tripDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.tripId === trip.id);
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:12px">
-          <h2 style="margin:0;font-size:1rem">Costuri &amp; Scadențe Furnizori</h2>
-          <div class="header-actions">
-            <button type="button" class="btn btn-secondary btn-sm" id="export-billing-btn">${icon('download')} Export Facturare (.csv)</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-btn">Editează costuri</button>
-            <button type="button" class="btn btn-primary btn-sm" id="add-deadline-btn">+ Scadență furnizor</button>
-          </div>
-        </div>
-        <div class="metric-strip" style="margin-bottom:14px">
-          <div class="metric-item"><span>Cost/pax</span><strong>${fmtMoney(trip.costPerPax, trip.currency)}</strong></div>
-          <div class="metric-item"><span>Preț/pax</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}</strong></div>
-          <div class="metric-item"><span>Cost fix</span><strong>${fmtMoney(trip.fixedCost, trip.currency)}</strong></div>
-          <div class="metric-item"><span>Cost total (${m.basisPax} pax)</span><strong>${fmtMoney(m.totalCost, trip.currency)}</strong></div>
-          <div class="metric-item is-profit"><span>Profit</span><strong>+${fmtMoney(m.profit, trip.currency)}</strong></div>
-        </div>
-        <div class="small muted" style="margin-bottom:8px;font-weight:600">Cut-off &amp; Plăți Furnizori (${tripDeadlines.length})</div>
-        ${
-          tripDeadlines.length === 0
-            ? '<p class="muted small">Nicio scadență furnizor adăugată.</p>'
-            : `<div class="stack">${tripDeadlines
-                .map((sd) => {
-                  const st = sd.done ? 'none' : getDueStatus(sd.dueDate);
-                  const lbl = getDueLabel(st);
-                  return `
-                  <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);opacity:${sd.done ? 0.6 : 1}">
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                      <input type="checkbox" ${sd.done ? 'checked' : ''} data-toggle-deadline="${esc(sd.id)}">
-                      <div>
-                        <strong>${esc(sd.supplierName)}</strong> · <span class="badge">${esc(sd.kind)}</span>
-                        <div class="muted small">
-                          Termen: ${esc(sd.dueDate || '-')}
-                          ${lbl ? `<span class="badge ${st === 'overdue' ? 'badge-danger' : 'badge-warning'}">${esc(lbl)}</span>` : ''}
-                          ${sd.amount ? ` · ${fmtMoney(sd.amount, sd.currency)}` : ''}
-                        </div>
-                      </div>
-                    </label>
-                    <button type="button" class="btn btn-ghost btn-sm" data-delete-deadline="${esc(sd.id)}">✕</button>
-                  </div>`;
-                })
-                .join('')}</div>`
-        }
-      </div>`;
-  } else {
-    const draftText =
-      state.offerDrafts[trip.id] ||
-      [
-        `PROPUNERE SEJUR — ${trip.title}`,
-        `Destinație: ${trip.destination}`,
-        `Perioadă: ${trip.dates}`,
-        `Stil: ${trip.style || 'Grup mic'}`,
-        `Tarif orientativ: ${trip.pricePerPax} ${trip.currency} / persoană [DE CONFIRMAT]`,
-        ``,
-        `Notă: Locurile (${m.spotsRemaining} disponibile) și tarifele finale se confirmă la înscriere.`,
-      ].join('\n');
-
-    tabBodyHtml = `
-      <div class="card">
-        <div class="master-header" style="margin-bottom:10px">
-          <h2 style="margin:0;font-size:1rem">Ofertă Master (WhatsApp / Print PDF)</h2>
-          <div class="header-actions no-print">
-            <button type="button" class="btn btn-secondary btn-sm" id="trip-ai-draft-btn">Generează cu Gemini AI</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="trip-copy-wa-btn">Copiază WhatsApp</button>
-            <button type="button" class="btn btn-primary btn-sm" id="trip-print-btn">Print / PDF</button>
-          </div>
-        </div>
-        <textarea id="trip-offer-textarea" rows="10" class="input mono-area no-print">${esc(draftText)}</textarea>
-        <div id="trip-ai-feedback" class="feedback-msg no-print" style="margin-top:8px"></div>
-        <div class="offer-print-preview">${esc(draftText)}</div>
-      </div>`;
+      </div>
+    `;
   }
 
-  centerEl.innerHTML = `
-    <div class="card">
-      <div class="master-header">
+  let rightHtml = '<div class="muted small">Selectează un client pentru comunicare.</div>';
+  if (app && cust) {
+    const rendered = renderMessageTemplate(selectedTemplateId, { trip, app, customer: cust, metrics: m });
+    rightHtml = `
+      <div class="rail-header" style="padding:0 0 8px"><span>Comunicare</span></div>
+      <select id="rail-tpl-select" class="input" aria-label="Alege șablon mesaj">
+        ${MESSAGE_TEMPLATES.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplateId ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+      </select>
+      <textarea id="rail-tpl-body" rows="6" class="input" style="font-size:0.8rem">${esc(rendered.body)}</textarea>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary btn-sm" id="rail-wa-btn">${icon('chat')} WhatsApp</button>
+        <a class="btn btn-secondary btn-sm" href="mailto:?subject=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}">${icon('mail')} Email</a>
+      </div>
+
+      <div class="rail-header" style="padding:10px 0 6px"><span>Istoric &amp; Note</span></div>
+      <form id="rail-note-form" class="form-actions">
+        <input id="rail-note-input" class="input" placeholder="Adaugă notă..." aria-label="Adaugă notă">
+      </form>
+      <div class="stack">
+        ${(app.notes || []).map((n) => `<div class="small" style="border-bottom:1px solid var(--border);padding-bottom:6px">${esc(n)}</div>`).join('')}
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="trip-subbar no-print">
+      <div class="header-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="back-to-trips-btn">← Sejururi</button>
+        <strong style="font-size:1rem">${esc(trip.title)}</strong>
+        <span class="muted small">${m.confirmedPax}/${trip.maxPax} pax</span>
+        <span class="badge badge-profit">${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)}</span>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">${icon('link')} Link</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="ws-edit-trip-btn">${icon('edit')} Editează sejur</button>
+        <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">${icon('userPlus')} Aplică</button>
+      </div>
+    </div>
+
+    <div class="ats-shell">
+      <aside class="ats-rail-left" aria-label="Clienți sejur">
+        <div class="rail-header">
+          <span>Clienți (${tripApps.length})</span>
+        </div>
         <div>
-          <h1>${esc(trip.title)}</h1>
-          <p class="muted small">${esc(trip.destination)} · ${esc(trip.dates)} · <span class="badge">${esc(trip.postingStatus || 'Publicat')}</span></p>
+          ${
+            tripApps.length === 0
+              ? '<div class="muted small" style="padding:14px">Niciun client.</div>'
+              : tripApps
+                  .map((a) => {
+                    const c = getCustomer(a.customerId);
+                    const active = a.id === state.selectedAppId ? 'is-active' : '';
+                    return `
+                    <button type="button" class="trip-list-item ${active}" data-select-app="${esc(a.id)}">
+                      <div class="trip-item-top">
+                        <span>${esc(c.name)}</span>
+                        ${qualDotHtml(a.qualificationStatus, a.qualificationReasons)}
+                      </div>
+                      <div class="trip-item-meta">${a.pax} pax · ${esc(a.stage)}</div>
+                    </button>`;
+                  })
+                  .join('')
+          }
         </div>
-        <div class="header-actions no-print">
-          <button type="button" class="btn btn-ghost btn-sm" id="copy-apply-link-btn">${icon('link')} Link</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="clone-trip-btn">Duplică</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="edit-trip-top-btn">${icon('edit')} Editează</button>
-          <button type="button" class="btn btn-accent btn-sm" id="apply-to-trip-btn">${icon('userPlus')} Aplică</button>
-        </div>
-      </div>
-      <div class="metric-strip">
-        <div class="metric-item"><span>Locuri</span><strong>${m.confirmedPax}/${trip.maxPax} pax</strong></div>
-        <div class="metric-item"><span>Preț</span><strong>${fmtMoney(trip.pricePerPax, trip.currency)}/pax</strong></div>
-        <div class="metric-item is-profit"><span>Profit</span><strong>${m.profit >= 0 ? '+' : ''}${fmtMoney(m.profit, trip.currency)} (${m.marginPct}%)</strong></div>
-      </div>
-    </div>
+      </aside>
 
-    <div class="sub-tabs no-print">
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'applicants' ? 'is-active' : ''}" data-center-tab="applicants">${icon('users')} Aplicanți (${tripApps.length})</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'rooms' ? 'is-active' : ''}" data-center-tab="rooms">${icon('bed')} Camere</button>
-      <button type="button" class="sub-tab-btn ${state.activeCenterTab === 'posting' ? 'is-active' : ''}" data-center-tab="posting">${icon('globe')} Anunț &amp; Costuri</button>
-    </div>
+      <main class="ats-center">${centerHtml}</main>
 
-    ${tabBodyHtml}
+      <aside class="ats-rail-right" aria-label="Comunicare client">${rightHtml}</aside>
+    </div>
   `;
 }
 
-function renderApplicantRightRail(trip) {
-  const rail = document.getElementById('applicant-detail-rail');
-  const app = state.applications.find((a) => a.id === state.selectedAppId && a.tripId === trip.id);
-  if (!app) {
-    rail.innerHTML = '<div class="muted small">Selectați un aplicant pentru detalii și acțiuni rapide.</div>';
-    return;
+/* 3. EDIT TRIP VIEW (Simple: Description textbox + Pictures) */
+function renderTripEditPage(container) {
+  const trip = state.trips.find((t) => t.id === state.selectedTripId);
+  if (!trip) {
+    state.tripsPageMode = 'home';
+    return renderTripsSection();
   }
+  const images = Array.isArray(trip.images) ? trip.images : [];
 
-  const cust = getCustomer(app.customerId);
-  const pax = Number(app.pax || 1);
-  const total = pax * Number(trip.pricePerPax || 0);
-  const cost = pax * Number(trip.costPerPax || 0);
-  const profit = total - cost;
-  const metrics = computeMasterTripMetrics(trip, state.applications);
-  const rendered = renderMessageTemplate(selectedTemplateId, { trip, app, customer: cust, metrics });
-
-  rail.innerHTML = `
-    <div class="rail-header" style="padding:0 0 10px">
-      <span>Aplicant</span>
-      ${qualDotHtml(app.qualificationStatus, app.qualificationReasons)}
-    </div>
-    <div>
-      <strong style="font-size:1.02rem">${esc(cust.name)}</strong>
-      <div class="muted small" style="display:flex;align-items:center;gap:5px">${channelIcon(cust.channel)} ${esc(cust.channel)} · ${pax} pax · ${fmtMoney(app.budgetPerPax, trip.currency)}/pax</div>
-    </div>
-    <div class="metric-strip" style="gap:12px">
-      <div class="metric-item"><span>Total</span><strong>${fmtMoney(total, trip.currency)}</strong></div>
-      <div class="metric-item is-profit" style="margin-left:0"><span>Profit</span><strong>+${fmtMoney(profit, trip.currency)}</strong></div>
-    </div>
-    <div class="form-actions">
-      <button type="button" class="btn btn-primary btn-sm" id="rail-advance-btn">${icon('arrowRight')} Etapă</button>
-      <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-        <input type="checkbox" id="rail-deposit-toggle" ${app.depositPaid ? 'checked' : ''}> Avans 30%
-      </label>
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Editează sejur</h1>
+        <p class="muted small">${esc(trip.title)}</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="edit-back-btn">← Înapoi</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="edit-open-ws-btn">Deschide Clienți →</button>
+      </div>
     </div>
 
-    <div class="rail-header" style="padding:10px 0 6px"><span>Șablon mesaj</span></div>
-    <select id="rail-tpl-select" class="input" aria-label="Alege șablon mesaj">
-      ${MESSAGE_TEMPLATES.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplateId ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
-    </select>
-    <textarea id="rail-tpl-body" rows="5" class="input" style="font-size:0.8rem">${esc(rendered.body)}</textarea>
-    <div class="form-actions">
-      <button type="button" class="btn btn-secondary btn-sm" id="rail-wa-btn">${icon('chat')} WhatsApp</button>
-      <a class="btn btn-secondary btn-sm" href="mailto:?subject=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}">${icon('mail')} Email</a>
-    </div>
+    <div class="card">
+      <form id="trip-edit-form" class="form-stack">
+        <div class="two-col-tight">
+          <div class="field"><label for="et-title">Titlu sejur *</label><input id="et-title" name="title" class="input" required value="${esc(trip.title)}"></div>
+          <div class="field"><label for="et-dest">Destinație *</label><input id="et-dest" name="destination" class="input" required value="${esc(trip.destination)}"></div>
+        </div>
+        <div class="two-col-tight">
+          <div class="field"><label for="et-dates">Perioadă</label><input id="et-dates" name="dates" class="input" value="${esc(trip.dates)}"></div>
+          <div class="field"><label for="et-status">Status anunț</label><select id="et-status" name="postingStatus" class="input">${POSTING_STATUSES.map((s) => `<option value="${s}" ${(trip.postingStatus || 'Publicat') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        </div>
+        <div class="two-col-tight">
+          <div class="field"><label for="et-cost">Cost furnizor / pax</label><input id="et-cost" name="costPerPax" type="number" min="0" class="input" value="${esc(trip.costPerPax)}"></div>
+          <div class="field"><label for="et-price">Preț vânzare / pax</label><input id="et-price" name="pricePerPax" type="number" min="0" class="input" value="${esc(trip.pricePerPax)}"></div>
+        </div>
+        <div class="two-col-tight">
+          <div class="field"><label for="et-pax">Locuri max</label><input id="et-pax" name="maxPax" type="number" min="1" class="input" value="${esc(trip.maxPax)}"></div>
+          <div class="field"><label for="et-cur">Monedă</label><select id="et-cur" name="currency" class="input">${VALID_CURRENCIES.map((c) => `<option value="${c}" ${trip.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+        </div>
 
-    <div class="rail-header" style="padding:10px 0 6px"><span>Note</span></div>
-    <form id="rail-note-form" class="form-actions">
-      <input id="rail-note-input" class="input" placeholder="Notă rapidă..." aria-label="Notă rapidă">
-    </form>
-    <div class="stack">
-      ${(app.notes || []).map((n) => `<div class="small" style="border-bottom:1px solid var(--border);padding-bottom:6px">${esc(n)}</div>`).join('')}
+        <div class="field">
+          <label for="et-desc">Descriere sejur</label>
+          <textarea id="et-desc" name="publicSummary" rows="5" class="input" placeholder="Descrie programul, ce este inclus și detalii utile pentru clienți...">${esc(trip.publicSummary || '')}</textarea>
+        </div>
+
+        <div class="field">
+          <label>Imagini sejur (${images.length})</label>
+          <div class="header-actions">
+            <input id="et-img-url" class="input" style="flex:1" placeholder="Lipește URL imagine (https://...)">
+            <button type="button" class="btn btn-secondary btn-sm" id="et-add-img-url">+ Adaugă URL</button>
+            <label class="btn btn-secondary btn-sm" for="et-img-file" style="cursor:pointer">+ Încarcă poză</label>
+            <input id="et-img-file" type="file" accept="image/*" hidden>
+          </div>
+          ${
+            images.length > 0
+              ? `<div class="img-preview-strip">${images
+                  .map(
+                    (src, idx) => `
+                  <div class="img-thumb-wrap">
+                    <img src="${esc(src)}" alt="Imagine sejur">
+                    <button type="button" class="img-thumb-del" data-del-trip-img="${idx}" aria-label="Șterge imagine">✕</button>
+                  </div>`
+                  )
+                  .join('')}</div>`
+              : ''
+          }
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Salvează sejur</button>
+        </div>
+      </form>
     </div>
   `;
 }
 
+/* 4. ANALYTICS VIEW */
+function renderAnalyticsView() {
+  const el = document.getElementById('view-analytics');
+  if (!el) return;
+  const a = computeAnalytics(state.trips, state.applications);
+  const maxRev = Math.max(1, ...a.byTrip.map((t) => t.revenue));
+  const maxFunnel = Math.max(1, ...a.funnel.map((f) => f.count));
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Analytics</h1>
+        <p class="muted small">Performanță pe sejururi, ocupare locuri și rată de calificare.</p>
+      </div>
+    </div>
+
+    <div class="econ-grid" style="margin-bottom:20px">
+      <div class="econ-box is-profit"><div class="econ-label">Profit estimat total</div><div class="econ-value">+${a.totalProfit.toLocaleString('ro-RO')}</div></div>
+      <div class="econ-box"><div class="econ-label">Venituri estimate</div><div class="econ-value">${a.totalRevenue.toLocaleString('ro-RO')}</div></div>
+      <div class="econ-box"><div class="econ-label">Ocupare locuri</div><div class="econ-value">${a.occupancyPct}%</div></div>
+      <div class="econ-box"><div class="econ-label">Calificare automată</div><div class="econ-value">${a.qualificationRatePct}%</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h2 style="margin:0 0 12px;font-size:1rem">Venituri &amp; Profit per Sejur</h2>
+        ${a.byTrip
+          .map(
+            (t) => `
+          <div class="bar-row">
+            <div class="small"><strong>${esc(t.title)}</strong><div class="muted">${t.confirmedPax}/${t.maxPax} pax</div></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round((t.revenue / maxRev) * 100)}%"></div></div>
+            <div class="small" style="text-align:right"><strong class="profit-text">+${fmtMoney(t.profit, t.currency)}</strong></div>
+          </div>`
+          )
+          .join('')}
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 12px;font-size:1rem">Funnel Aplicanți (${a.totalApplications} activi)</h2>
+        ${a.funnel
+          .map(
+            (f) => `
+          <div class="bar-row">
+            <div class="small"><strong>${esc(f.stage)}</strong></div>
+            <div class="bar-track"><div class="bar-fill is-accent" style="width:${Math.round((f.count / maxFunnel) * 100)}%"></div></div>
+            <div class="small" style="text-align:right"><strong>${f.count}</strong></div>
+          </div>`
+          )
+          .join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* 5. TASKS VIEW */
 function renderTasksView() {
   const list = document.getElementById('tasks-list');
   const openTasksCount =
@@ -884,52 +711,32 @@ function renderTasksView() {
   list.innerHTML = [...deadlineHtml, ...taskHtml].join('');
 }
 
-function renderCustomersView() {
-  const tbody = document.getElementById('customers-tbody');
-  tbody.innerHTML = state.customers
-    .map((c) => {
-      const count = state.applications.filter((a) => a.customerId === c.id).length;
-      return `
-      <tr>
-        <td><strong>${esc(c.name)}</strong></td>
-        <td><span style="display:inline-flex;align-items:center;gap:5px">${channelIcon(c.channel)} ${esc(c.channel || '-')}</span></td>
-        <td>${count}</td>
-        <td class="muted small">${esc(c.note || '-')}</td>
-        <td>
-          <div class="header-actions">
-            <button type="button" class="btn btn-secondary btn-sm" data-export-customer="${esc(c.id)}">Export JSON</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-delete-customer="${esc(c.id)}">Șterge</button>
-          </div>
-        </td>
-      </tr>`;
-    })
-    .join('');
-}
-
 /* ---------------- EVENTS ---------------- */
 
 document.addEventListener('click', async (e) => {
-  const tripBtn = e.target.closest('[data-select-trip]');
-  if (tripBtn) {
-    state.selectedTripId = tripBtn.dataset.selectTrip;
+  const openBtn = e.target.closest('[data-open-trip]');
+  if (openBtn) {
+    state.selectedTripId = openBtn.dataset.openTrip;
+    state.tripsPageMode = 'workspace';
     saveState();
-    renderTripsView();
+    renderTripsSection();
     return;
   }
 
-  const appRow = e.target.closest('tr[data-select-app]');
-  if (appRow && !e.target.closest('select')) {
-    state.selectedAppId = appRow.dataset.selectApp;
+  const editBtn = e.target.closest('[data-edit-trip]');
+  if (editBtn) {
+    state.selectedTripId = editBtn.dataset.editTrip;
+    state.tripsPageMode = 'edit';
     saveState();
-    renderTripsView();
+    renderTripsSection();
     return;
   }
 
-  const tabBtn = e.target.closest('[data-center-tab]');
-  if (tabBtn) {
-    state.activeCenterTab = tabBtn.dataset.centerTab;
+  const appBtn = e.target.closest('[data-select-app]');
+  if (appBtn) {
+    state.selectedAppId = appBtn.dataset.selectApp;
     saveState();
-    renderTripsView();
+    renderTripsSection();
     return;
   }
 
@@ -937,53 +744,72 @@ document.addEventListener('click', async (e) => {
   if (stayBtn) {
     state.selectedStayId = stayBtn.dataset.selectStay;
     saveState();
-    renderTripsView();
-    return;
-  }
-
-  const filterBtn = e.target.closest('[data-app-filter]');
-  if (filterBtn) {
-    applicantFilter = filterBtn.dataset.appFilter;
-    renderTripsView();
+    renderTripsSection();
     return;
   }
 
   const btn = e.target.closest('button');
   if (!btn) return;
 
-  if (btn.id === 'new-trip-btn') openTripModal();
-  else if (btn.id === 'add-stay-btn') openStayModal();
-  else if (btn.id === 'add-day-btn') openDayModal();
-  else if (btn.id === 'add-faq-btn') openFaqModal();
-  else if (btn.id === 'add-question-btn') openQuestionModal();
-  else if (btn.id === 'add-deadline-btn') openDeadlineModal();
-  else if (btn.id === 'copy-stay1-btn') {
+  if (btn.id === 'new-trip-btn') {
+    const id = uid('trip');
+    state.trips.unshift({
+      id,
+      title: 'Sejur nou',
+      destination: 'Destinație',
+      dates: '2027-06-15 → 2027-06-22',
+      coverTheme: 'forest',
+      maxPax: 10,
+      costPerPax: 600,
+      pricePerPax: 850,
+      fixedCost: 0,
+      currency: 'EUR',
+      postingStatus: 'Draft',
+      publicSummary: '',
+      images: [],
+      stays: [{ id: uid('stay'), name: 'Cazare principală', nights: 5, doubleRooms: 4, singleRooms: 2 }],
+    });
+    state.selectedTripId = id;
+    state.tripsPageMode = 'edit';
+    saveState();
+    switchView('trips');
+  } else if (btn.id === 'back-to-trips-btn' || btn.id === 'edit-back-btn') {
+    state.tripsPageMode = 'home';
+    saveState();
+    renderTripsSection();
+  } else if (btn.id === 'ws-edit-trip-btn') {
+    state.tripsPageMode = 'edit';
+    saveState();
+    renderTripsSection();
+  } else if (btn.id === 'edit-open-ws-btn') {
+    state.tripsPageMode = 'workspace';
+    saveState();
+    renderTripsSection();
+  } else if (btn.id === 'et-add-img-url') {
+    const urlInput = document.getElementById('et-img-url');
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    const stay1 = trip?.stays?.[0];
-    if (!trip || !stay1 || !state.selectedStayId) return;
-    for (const app of state.applications.filter((a) => a.tripId === trip.id)) {
-      const src = app.roomByStay?.[stay1.id] || { roomType: app.roomType || 'Double', roomCode: app.roomCode || 'Neasignat' };
-      app.roomByStay = app.roomByStay || {};
-      app.roomByStay[state.selectedStayId] = { ...src };
+    if (trip && urlInput?.value.trim()) {
+      trip.images = Array.isArray(trip.images) ? trip.images : [];
+      trip.images.push(urlInput.value.trim());
+      saveState();
+      renderTripsSection();
+      showToast('Imagine adăugată.');
     }
-    saveState();
-    renderTripsView();
-    showToast('Alocare copiată din prima cazare.');
-  } else if (btn.id === 'edit-trip-top-btn' || btn.id === 'edit-trip-btn') {
+  } else if (btn.dataset.delTripImg !== undefined) {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (trip) openTripModal(trip);
-  } else if (btn.id === 'clone-trip-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const cloned = cloneMasterTrip(trip, uid('trip'), () => uid('stay'));
-    state.trips.unshift(cloned);
-    state.selectedTripId = cloned.id;
-    state.selectedStayId = cloned.stays[0]?.id || '';
-    saveState();
-    renderAll();
-    showToast('Sejur duplicat ca „Draft”.');
+    if (trip && Array.isArray(trip.images)) {
+      trip.images.splice(Number(btn.dataset.delTripImg), 1);
+      saveState();
+      renderTripsSection();
+    }
   } else if (btn.id === 'apply-to-trip-btn') {
     openApplyModal();
+  } else if (btn.id === 'add-stay-btn') {
+    openStayModal();
+  } else if (btn.id === 'new-task-btn') {
+    openTaskModal();
+  } else if (btn.id === 'parse-email-btn') {
+    openEmailParseModal();
   } else if (btn.id === 'copy-apply-link-btn') {
     const url = `${window.location.origin}/?apply=${encodeURIComponent(state.selectedTripId)}`;
     try {
@@ -992,39 +818,7 @@ document.addEventListener('click', async (e) => {
     } catch {
       showToast(url);
     }
-  } else if (btn.id === 'copy-social-post-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const text = buildSocialPostText(trip, state.applications, window.location.origin);
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Postare Social (WhatsApp/Instagram) copiată.');
-    } catch {
-      showToast('Nu s-a putut copia automat.');
-    }
-  } else if (btn.id === 'export-billing-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const tripApps = state.applications.filter((a) => a.tripId === trip.id);
-    const rows = buildBillingExportRows(trip, tripApps, state.customers);
-    if (rows.length === 0) return showToast('Niciun aplicant în etapă facturabilă.');
-    const csv = buildCsv(
-      ['client', 'serviciu_sejur', 'pax', 'pret_pax', 'total', 'avans_30_proc', 'incasat', 'rest_plata', 'moneda', 'etapa', 'nota_contabila'],
-      rows
-    );
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `facturare-${trip.id}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Tabel facturare (.csv) exportat.');
-  } else if (btn.id === 'new-task-btn') {
-    openTaskModal();
-  } else if (btn.id === 'parse-email-btn') {
-    openEmailParseModal();
-  } else if (btn.id === 'rail-advance-btn') {
+  } else if (btn.id === 'advance-stage-btn') {
     const app = state.applications.find((a) => a.id === state.selectedAppId);
     if (app) {
       const idx = APPLICATION_STAGES.indexOf(app.stage);
@@ -1032,133 +826,33 @@ document.addEventListener('click', async (e) => {
         app.stage = APPLICATION_STAGES[idx + 1];
         app.notes.unshift(`Azi · Avansat la ${app.stage}`);
         saveState();
-        renderTripsView();
-        showToast(`Etapă actualizată: ${app.stage}`);
+        renderAll();
+        showToast(`Etapă: ${app.stage}`);
       }
     }
-  } else if (btn.id === 'rail-wa-btn' || btn.id === 'trip-copy-wa-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const railBody = document.getElementById('rail-tpl-body')?.value;
-    const text =
-      (btn.id === 'rail-wa-btn' && railBody) ||
-      state.offerDrafts[trip.id] ||
-      `Bună ziua! Vă trimit detaliile pentru ${trip.title} (${trip.dates}): ${trip.pricePerPax} ${trip.currency}/persoană [DE CONFIRMAT].`;
+  } else if (btn.id === 'rail-wa-btn') {
+    const text = document.getElementById('rail-tpl-body')?.value || '';
+    if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      if (btn.id === 'rail-wa-btn') {
-        const app = state.applications.find((a) => a.id === state.selectedAppId);
-        const tpl = MESSAGE_TEMPLATES.find((t) => t.id === selectedTemplateId);
-        if (app && tpl) {
-          app.notes.unshift(`Azi · Trimis WhatsApp: ${tpl.label}`);
-          saveState();
-          renderTripsView();
-        }
+      const app = state.applications.find((a) => a.id === state.selectedAppId);
+      const tpl = MESSAGE_TEMPLATES.find((t) => t.id === selectedTemplateId);
+      if (app && tpl) {
+        app.notes.unshift(`Azi · Trimis WhatsApp: ${tpl.label}`);
+        saveState();
+        renderTripsSection();
       }
       showToast('Copiat pentru WhatsApp.');
     } catch {
-      showToast('Selectați textul manual.');
+      showToast('Copiere eșuată.');
     }
-  } else if (btn.id === 'trip-print-btn') {
-    window.print();
-  } else if (btn.id === 'trip-ai-draft-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    const fb = document.getElementById('trip-ai-feedback');
-    if (!trip || !fb) return;
-    fb.className = 'feedback-msg';
-    fb.textContent = 'Se generează schița AI...';
-    try {
-      const res = await fetch('/api/offer-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination: trip.destination,
-          dates: trip.dates,
-          travellersCount: `grup max ${trip.maxPax} persoane`,
-          style: trip.style,
-          budget: String(trip.pricePerPax),
-          currency: trip.currency,
-          notes: trip.notes,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        fb.className = 'feedback-msg is-error';
-        fb.textContent = data.error;
-        return;
-      }
-      state.offerDrafts[trip.id] = data.draft;
-      saveState();
-      renderTripsView();
-    } catch {
-      fb.className = 'feedback-msg is-error';
-      fb.textContent = 'Serverul AI nu a răspuns.';
-    }
-  } else if (btn.id === 'add-doc-btn') {
-    openDocModal();
-  } else if (btn.id === 'gen-client-doc-btn' || btn.id === 'gen-supplier-doc-btn') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const isSupplier = btn.id === 'gen-supplier-doc-btn';
-    const tripApps = state.applications.filter((a) => a.tripId === trip.id);
-    const content = buildGeneratedDocumentText(
-      isSupplier ? 'supplier_rooming' : 'client_itinerary',
-      trip,
-      tripApps,
-      state.customers
-    );
-    state.documents = state.documents || [];
-    state.documents.unshift({
-      id: uid('doc'),
-      tripId: trip.id,
-      title: isSupplier ? `Borderou Camere — ${trip.title}.pdf` : `Itinerariu & Cazări — ${trip.title}.pdf`,
-      kind: isSupplier ? 'Rooming' : 'Itinerariu',
-      audience: isSupplier ? 'Furnizor' : 'Client',
-      version: 1,
-      content,
-      sentLog: [],
-      updatedAt: new Date().toISOString().slice(0, 10),
-    });
-    state.offerDrafts[trip.id] = content;
-    saveState();
-    renderTripsView();
-    showToast(isSupplier ? 'Borderou Furnizor generat.' : 'Itinerariu Client generat.');
-  } else if (btn.dataset.openDoc) {
-    const doc = (state.documents || []).find((d) => d.id === btn.dataset.openDoc);
-    if (doc && doc.content) {
-      state.offerDrafts[doc.tripId] = doc.content;
-      state.activeCenterTab = 'offer';
-      saveState();
-      renderTripsView();
-    }
-  } else if (btn.dataset.exportCustomer) {
-    const cust = state.customers.find((c) => c.id === btn.dataset.exportCustomer);
-    if (!cust) return;
-    const apps = state.applications.filter((a) => a.customerId === cust.id);
-    const blob = new Blob([JSON.stringify({ customer: cust, applications: apps }, null, 2)], {
-      type: 'application/json;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `gdpr-export-${cust.id}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Date client exportate (GDPR).');
-  } else if (btn.dataset.deleteCustomer) {
-    const id = btn.dataset.deleteCustomer;
-    state.customers = state.customers.filter((c) => c.id !== id);
-    state.applications = state.applications.filter((a) => a.customerId !== id);
-    saveState();
-    renderAll();
-    showToast('Client și aplicații șterse (GDPR).');
   } else if (btn.id === 'export-rooming-btn') {
     const trip = state.trips.find((t) => t.id === state.selectedTripId);
     if (!trip) return;
     const activeStay = trip.stays?.find((s) => s.id === state.selectedStayId) || trip.stays?.[0] || null;
     const tripApps = state.applications.filter((a) => a.tripId === trip.id);
     const rows = buildHotelRoomingRows(tripApps, state.customers, activeStay);
-    if (rows.length === 0) return showToast('Alocați cel puțin o cameră înainte de export.');
+    if (rows.length === 0) return showToast('Alocați cel puțin o cameră.');
     const csv = buildCsv(['cazare', 'camera', 'tip_camera', 'oaspeti', 'pax', 'observatii'], rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1167,99 +861,53 @@ document.addEventListener('click', async (e) => {
     a.download = `rooming-${trip.id}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Rooming List exportat (fără prețuri interne).');
-  } else if (btn.dataset.docBump) {
-    const doc = (state.documents || []).find((d) => d.id === btn.dataset.docBump);
-    if (doc) {
-      doc.version = Number(doc.version || 1) + 1;
-      doc.updatedAt = new Date().toISOString().slice(0, 10);
-      saveState();
-      renderTripsView();
-      showToast(`Versiune nouă: v${doc.version}`);
-    }
-  } else if (btn.dataset.docSent) {
-    const doc = (state.documents || []).find((d) => d.id === btn.dataset.docSent);
-    if (doc) {
-      doc.sentLog = doc.sentLog || [];
-      const dateStr = new Date().toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' });
-      doc.sentLog.unshift(`${dateStr} · Trimis (${doc.audience || 'Client'} v${doc.version || 1})`);
-      saveState();
-      renderTripsView();
-      showToast('Marcat ca trimis.');
-    }
-  } else if (btn.dataset.deleteDoc) {
-    state.documents = (state.documents || []).filter((d) => d.id !== btn.dataset.deleteDoc);
-    saveState();
-    renderTripsView();
-    showToast('Document șters.');
-  } else if (btn.dataset.deleteQuestion) {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (trip && Array.isArray(trip.customQuestions)) {
-      trip.customQuestions = trip.customQuestions.filter((q) => q.id !== btn.dataset.deleteQuestion);
-      saveState();
-      renderTripsView();
-    }
-  } else if (btn.dataset.deleteDay !== undefined) {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    const idx = Number(btn.dataset.deleteDay);
-    if (trip && Array.isArray(trip.highlights)) {
-      trip.highlights.splice(idx, 1);
-      saveState();
-      renderTripsView();
-    }
-  } else if (btn.dataset.deleteFaq) {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (trip && Array.isArray(trip.faqs)) {
-      trip.faqs = trip.faqs.filter((f) => f.id !== btn.dataset.deleteFaq);
-      saveState();
-      renderTripsView();
-    }
+    showToast('Rooming Hotel exportat.');
   } else if (btn.dataset.deleteDeadline) {
     state.supplierDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.id !== btn.dataset.deleteDeadline);
     saveState();
-    renderAll();
+    renderTasksView();
   } else if (btn.dataset.deleteTask) {
     state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.deleteTask);
     saveState();
     renderTasksView();
-  } else if (btn.dataset.exportCsv) {
-    exportDatasetCsv(btn.dataset.exportCsv);
   }
 });
 
-document.addEventListener('change', (e) => {
-  if (e.target.matches('select[data-app-stage]')) {
+document.addEventListener('change', async (e) => {
+  if (e.target.id === 'et-img-file') {
+    const file = e.target.files?.[0];
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!file || !trip) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      trip.images = Array.isArray(trip.images) ? trip.images : [];
+      trip.images.push(String(reader.result));
+      saveState();
+      renderTripsSection();
+      showToast('Poză încărcată.');
+    };
+    reader.readAsDataURL(file);
+  } else if (e.target.matches('select[data-app-stage]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.appStage);
     if (app) {
       app.stage = e.target.value;
       app.notes.unshift(`Azi · Mutat în ${app.stage}`);
       saveState();
-      renderTripsView();
+      renderAll();
       showToast(`Status: ${app.stage}`);
     }
-  } else if (e.target.id === 'posting-status-select') {
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (trip) {
-      trip.postingStatus = e.target.value;
-      saveState();
-      renderTripsView();
-      showToast(`Status anunț: ${trip.postingStatus}`);
-    }
-  } else if (e.target.id === 'rail-deposit-toggle') {
+  } else if (e.target.id === 'client-deposit-toggle') {
     const app = state.applications.find((a) => a.id === state.selectedAppId);
     if (app) {
       app.depositPaid = e.target.checked;
-      if (app.depositPaid && app.stage === 'Ofertă trimisă') {
-        app.stage = 'Avans achitat';
-      }
+      if (app.depositPaid && app.stage === 'Ofertă trimisă') app.stage = 'Avans achitat';
       app.notes.unshift(`Azi · Avans 30%: ${app.depositPaid ? 'Achitat' : 'Neachitat'}`);
       saveState();
-      renderTripsView();
-      showToast(app.depositPaid ? 'Avans 30% marcat achitat.' : 'Avans demarcat.');
+      renderAll();
     }
   } else if (e.target.id === 'rail-tpl-select') {
     selectedTemplateId = e.target.value;
-    renderTripsView();
+    renderTripsSection();
   } else if (e.target.matches('select[data-room-type]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.roomType);
     if (app) {
@@ -1270,7 +918,7 @@ document.addEventListener('change', (e) => {
       }
       app.roomType = e.target.value;
       saveState();
-      renderTripsView();
+      renderTripsSection();
     }
   } else if (e.target.matches('select[data-room-code]')) {
     const app = state.applications.find((a) => a.id === e.target.dataset.roomCode);
@@ -1282,14 +930,14 @@ document.addEventListener('change', (e) => {
       }
       app.roomCode = e.target.value;
       saveState();
-      renderTripsView();
+      renderTripsSection();
     }
   } else if (e.target.matches('input[type="checkbox"][data-toggle-deadline]')) {
     const sd = (state.supplierDeadlines || []).find((x) => x.id === e.target.dataset.toggleDeadline);
     if (sd) {
       sd.done = e.target.checked;
       saveState();
-      renderAll();
+      renderTasksView();
     }
   } else if (e.target.matches('input[type="checkbox"][data-toggle-task]')) {
     const t = state.tasks.find((x) => x.id === e.target.dataset.toggleTask);
@@ -1301,38 +949,36 @@ document.addEventListener('change', (e) => {
   }
 });
 
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'trip-offer-textarea' && state.selectedTripId) {
-    state.offerDrafts[state.selectedTripId] = e.target.value;
-    saveState();
-  }
-});
-
 document.addEventListener('submit', (e) => {
-  if (e.target.id === 'rail-note-form') {
+  if (e.target.id === 'trip-edit-form') {
+    e.preventDefault();
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (!trip) return;
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    Object.assign(trip, {
+      title: (fd.title || '').trim() || trip.title,
+      destination: (fd.destination || '').trim() || trip.destination,
+      dates: (fd.dates || '').trim(),
+      postingStatus: fd.postingStatus || 'Publicat',
+      costPerPax: Number(fd.costPerPax || 0),
+      pricePerPax: Number(fd.pricePerPax || 0),
+      maxPax: Number(fd.maxPax || 10),
+      currency: fd.currency || 'EUR',
+      publicSummary: (fd.publicSummary || '').trim(),
+    });
+    saveState();
+    renderAll();
+    showToast('Sejur salvat.');
+  } else if (e.target.id === 'rail-note-form') {
     e.preventDefault();
     const input = document.getElementById('rail-note-input');
     const app = state.applications.find((a) => a.id === state.selectedAppId);
     if (app && input?.value.trim()) {
       app.notes.unshift(`Azi · ${input.value.trim()}`);
       saveState();
-      renderTripsView();
+      renderTripsSection();
       showToast('Notă adăugată.');
     }
-  } else if (e.target.id === 'posting-details-form') {
-    e.preventDefault();
-    const trip = state.trips.find((t) => t.id === state.selectedTripId);
-    if (!trip) return;
-    const fd = Object.fromEntries(new FormData(e.target).entries());
-    trip.publicSummary = (fd.publicSummary || '').trim();
-    trip.coverImageUrl = (fd.coverImageUrl || '').trim();
-    trip.coverTheme = fd.coverTheme || 'forest';
-    trip.includedText = (fd.includedText || '').trim();
-    trip.excludedText = (fd.excludedText || '').trim();
-    trip.paymentTerms = (fd.paymentTerms || '').trim();
-    saveState();
-    renderTripsView();
-    showToast('Conținut CMS salvat.');
   }
 });
 
@@ -1357,37 +1003,12 @@ modalEl?.addEventListener('click', (e) => {
   if (e.target === modalEl) closeModal();
 });
 
-function openTripModal(existing = null) {
-  activeModal = { type: 'trip', id: existing?.id || null };
-  modalTitleEl.textContent = existing ? 'Editează Master Trip' : 'Master Trip nou';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="t-title">Titlu sejur *</label><input id="t-title" name="title" class="input" required value="${esc(existing?.title || '')}"></div>
-    <div class="field"><label for="t-dest">Destinație *</label><input id="t-dest" name="destination" class="input" required value="${esc(existing?.destination || '')}"></div>
-    <div class="two-col-tight">
-      <div class="field"><label for="t-dates">Perioadă</label><input id="t-dates" name="dates" class="input" placeholder="2027-06-15 → 2027-06-22" value="${esc(existing?.dates || '')}"></div>
-      <div class="field"><label for="t-pax">Locuri max</label><input id="t-pax" name="maxPax" type="number" min="1" class="input" value="${esc(existing?.maxPax ?? 10)}"></div>
-    </div>
-    <div class="two-col-tight">
-      <div class="field"><label for="t-cost">Cost furnizor / pax</label><input id="t-cost" name="costPerPax" type="number" min="0" class="input" value="${esc(existing?.costPerPax ?? 600)}"></div>
-      <div class="field"><label for="t-price">Preț vânzare / pax</label><input id="t-price" name="pricePerPax" type="number" min="0" class="input" value="${esc(existing?.pricePerPax ?? 800)}"></div>
-    </div>
-    <div class="two-col-tight">
-      <div class="field"><label for="t-fixed">Cost fix grup</label><input id="t-fixed" name="fixedCost" type="number" min="0" class="input" value="${esc(existing?.fixedCost ?? 0)}"></div>
-      <div class="field"><label for="t-cur">Monedă</label><select id="t-cur" name="currency" class="input">${VALID_CURRENCIES.map((c) => `<option value="${c}" ${existing?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-    </div>
-    <div class="field"><label for="t-notes">Note</label><textarea id="t-notes" name="notes" rows="2" class="input">${esc(existing?.notes || '')}</textarea></div>
-  `;
-  modalEl.hidden = false;
-}
-
 function openApplyModal() {
   const trip = state.trips.find((t) => t.id === state.selectedTripId);
   if (!trip) return;
   activeModal = { type: 'apply', tripId: trip.id };
   modalTitleEl.textContent = `Aplică la: ${trip.title}`;
-  const questions = Array.isArray(trip.customQuestions) ? trip.customQuestions : [];
   modalFieldsEl.innerHTML = `
-    <p class="muted small">Simulează aplicarea unui client. Sistemul califică automat bugetul (${trip.pricePerPax} ${trip.currency}/pax), locurile și criteriile.</p>
     <div class="field"><label for="a-name">Nume client (sintetic) *</label><input id="a-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
     <div class="two-col-tight">
       <div class="field"><label for="a-pax">Nr. persoane</label><input id="a-pax" name="pax" type="number" min="1" class="input" value="2"></div>
@@ -1396,66 +1017,6 @@ function openApplyModal() {
     <div class="two-col-tight">
       <div class="field"><label for="a-channel">Canal</label><select id="a-channel" name="channel" class="input"><option>Formular Sejur</option><option>WhatsApp</option><option>Instagram</option><option>Email</option></select></div>
       <div class="field"><label for="a-room">Preferință cameră</label><select id="a-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
-    </div>
-    ${questions
-      .map(
-        (q) => `
-      <div class="field">
-        <label for="aq-${esc(q.id)}">${esc(q.label)}</label>
-        <select id="aq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
-          <option value="Da">Da</option>
-          <option value="Nu">Nu</option>
-        </select>
-      </div>`
-      )
-      .join('')}
-  `;
-  modalEl.hidden = false;
-}
-
-function openDayModal() {
-  activeModal = { type: 'day', tripId: state.selectedTripId };
-  modalTitleEl.textContent = 'Zi nouă în program';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="day-lbl">Etichetă zi *</label><input id="day-lbl" name="day" class="input" required placeholder="ex. Ziua 5"></div>
-    <div class="field"><label for="day-txt">Descriere activități *</label><input id="day-txt" name="text" class="input" required placeholder="ex. Tur ghidat & cină tradițională"></div>
-  `;
-  modalEl.hidden = false;
-}
-
-function openFaqModal() {
-  activeModal = { type: 'faq', tripId: state.selectedTripId };
-  modalTitleEl.textContent = 'Întrebare frecventă (FAQ)';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="faq-q">Întrebare *</label><input id="faq-q" name="q" class="input" required placeholder="ex. Este inclus echipamentul?"></div>
-    <div class="field"><label for="faq-a">Răspuns *</label><textarea id="faq-a" name="a" rows="2" class="input" required></textarea></div>
-  `;
-  modalEl.hidden = false;
-}
-
-function openQuestionModal() {
-  activeModal = { type: 'question', tripId: state.selectedTripId };
-  modalTitleEl.textContent = 'Criteriu nou de calificare';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="q-lbl">Întrebare Da/Nu pentru aplicant *</label><input id="q-lbl" name="label" class="input" required placeholder="ex. Experiență drumeții montane?"></div>
-    <div class="field"><label for="q-req">Răspuns cerut pentru calificare automată</label><select id="q-req" name="requiredAnswer" class="input"><option value="Da">Da</option><option value="Nu">Nu</option></select></div>
-  `;
-  modalEl.hidden = false;
-}
-
-function openDeadlineModal() {
-  const trip = state.trips.find((t) => t.id === state.selectedTripId);
-  activeModal = { type: 'deadline', tripId: state.selectedTripId };
-  modalTitleEl.textContent = 'Scadență furnizor nouă';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="sd-sup">Furnizor / Hotel *</label><input id="sd-sup" name="supplierName" class="input" required placeholder="ex. Basecamp Hotel"></div>
-    <div class="two-col-tight">
-      <div class="field"><label for="sd-kind">Tip scadență</label><select id="sd-kind" name="kind" class="input">${DEADLINE_KINDS.map((k) => `<option value="${k}">${k}</option>`).join('')}</select></div>
-      <div class="field"><label for="sd-due">Dată limită *</label><input id="sd-due" name="dueDate" type="date" class="input" required></div>
-    </div>
-    <div class="two-col-tight">
-      <div class="field"><label for="sd-amt">Sumă (opțional)</label><input id="sd-amt" name="amount" type="number" min="0" class="input" value="0"></div>
-      <div class="field"><label for="sd-cur">Monedă</label><select id="sd-cur" name="currency" class="input">${VALID_CURRENCIES.map((c) => `<option value="${c}" ${trip?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
     </div>
   `;
   modalEl.hidden = false;
@@ -1475,29 +1036,12 @@ function openStayModal() {
   modalEl.hidden = false;
 }
 
-function openDocModal() {
-  activeModal = { type: 'doc', tripId: state.selectedTripId };
-  modalTitleEl.textContent = 'Document nou pentru sejur';
-  modalFieldsEl.innerHTML = `
-    <div class="field"><label for="d-title">Nume document *</label><input id="d-title" name="title" class="input" required placeholder="ex. Itinerariu final.pdf"></div>
-    <div class="two-col-tight">
-      <div class="field"><label for="d-kind">Tip</label><select id="d-kind" name="kind" class="input"><option>Itinerariu</option><option>Rooming</option><option>Ghid călător</option><option>Contract</option></select></div>
-      <div class="field"><label for="d-audience">Destinatar</label><select id="d-audience" name="audience" class="input"><option>Client</option><option>Furnizor</option></select></div>
-    </div>
-  `;
-  modalEl.hidden = false;
-}
-
 function openEmailParseModal() {
   activeModal = { type: 'email-parse' };
   modalTitleEl.textContent = 'Convertește Email în Scadență / Sarcină';
   modalFieldsEl.innerHTML = `
-    <p class="muted small">Lipește textul unui email de la hotel/furnizor. Data (DD.MM.YYYY / YYYY-MM-DD) și suma (EUR/RON) sunt extrase automat.</p>
-    <div class="field"><label for="ep-text">Text email *</label><textarea id="ep-text" name="rawText" rows="4" class="input" required placeholder="ex. Vă rugăm să trimiteți Rooming List final până la 25.11.2026 și avansul de 1200 EUR."></textarea></div>
-    <div class="two-col-tight">
-      <div class="field"><label for="ep-target">Salvează ca</label><select id="ep-target" name="targetType" class="input"><option value="deadline">Scadență furnizor</option><option value="task">Sarcină generală</option></select></div>
-      <div class="field"><label for="ep-trip">Sejur</label><select id="ep-trip" name="tripId" class="input">${state.trips.map((t) => `<option value="${esc(t.id)}" ${t.id === state.selectedTripId ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</select></div>
-    </div>
+    <div class="field"><label for="ep-text">Text email *</label><textarea id="ep-text" name="rawText" rows="4" class="input" required placeholder="ex. Vă rugăm să achitați 1200 EUR până la 25.11.2026."></textarea></div>
+    <div class="field"><label for="ep-trip">Sejur</label><select id="ep-trip" name="tripId" class="input">${state.trips.map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join('')}</select></div>
   `;
   modalEl.hidden = false;
 }
@@ -1522,42 +1066,15 @@ modalFormEl?.addEventListener('submit', (e) => {
     modalErrorEl.hidden = false;
   };
 
-  if (activeModal.type === 'trip') {
-    if (!data.title?.trim() || !data.destination?.trim()) return showError('Titlul și destinația sunt obligatorii.');
-    const payload = {
-      title: data.title.trim(),
-      destination: data.destination.trim(),
-      dates: data.dates.trim(),
-      maxPax: Number(data.maxPax || 10),
-      costPerPax: Number(data.costPerPax || 0),
-      pricePerPax: Number(data.pricePerPax || 0),
-      fixedCost: Number(data.fixedCost || 0),
-      currency: data.currency || 'EUR',
-      notes: data.notes.trim(),
-    };
-    if (activeModal.id) {
-      Object.assign(state.trips.find((t) => t.id === activeModal.id), payload);
-    } else {
-      const id = uid('trip');
-      state.trips.unshift({ id, postingStatus: 'Publicat', customQuestions: [], stays: [], ...payload });
-      state.selectedTripId = id;
-    }
-    showToast('Sejur salvat.');
-  } else if (activeModal.type === 'apply') {
+  if (activeModal.type === 'apply') {
     if (!data.name?.trim()) return showError('Numele clientului este obligatoriu.');
     const trip = state.trips.find((t) => t.id === activeModal.tripId);
     const metrics = computeMasterTripMetrics(trip, state.applications);
-    const cust = { id: uid('cust'), name: data.name.trim(), channel: data.channel, note: 'Aplicant sejur' };
+    const cust = { id: uid('cust'), name: data.name.trim(), channel: data.channel, note: '' };
     state.customers.unshift(cust);
-
-    const answers = {};
-    for (const q of trip.customQuestions || []) {
-      answers[q.id] = data[`q_${q.id}`] || 'Da';
-    }
-
     const qual = autoQualifyApplication(
       trip,
-      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0), answers },
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
       metrics.confirmedPax
     );
     const appId = uid('app');
@@ -1574,52 +1091,10 @@ modalFormEl?.addEventListener('submit', (e) => {
       qualificationStatus: qual.status,
       qualificationReasons: qual.reasons,
       appliedAt: new Date().toISOString().slice(0, 10),
-      notes: [`Azi · ${qual.status}: ${qual.reasons.join('; ')}`],
+      notes: [`Azi · ${qual.status}`],
     });
     state.selectedAppId = appId;
     showToast(`Aplicant adăugat: ${qual.status}`);
-  } else if (activeModal.type === 'day') {
-    if (!data.day?.trim() || !data.text?.trim()) return showError('Ziua și descrierea sunt obligatorii.');
-    const trip = state.trips.find((t) => t.id === activeModal.tripId);
-    if (trip) {
-      trip.highlights = Array.isArray(trip.highlights) ? trip.highlights : [];
-      trip.highlights.push([data.day.trim(), data.text.trim()]);
-      showToast('Zi adăugată în program.');
-    }
-  } else if (activeModal.type === 'faq') {
-    if (!data.q?.trim() || !data.a?.trim()) return showError('Întrebarea și răspunsul sunt obligatorii.');
-    const trip = state.trips.find((t) => t.id === activeModal.tripId);
-    if (trip) {
-      trip.faqs = Array.isArray(trip.faqs) ? trip.faqs : [];
-      trip.faqs.push({ id: uid('faq'), q: data.q.trim(), a: data.a.trim() });
-      showToast('FAQ adăugat.');
-    }
-  } else if (activeModal.type === 'question') {
-    if (!data.label?.trim()) return showError('Întrebarea este obligatorie.');
-    const trip = state.trips.find((t) => t.id === activeModal.tripId);
-    if (trip) {
-      trip.customQuestions = Array.isArray(trip.customQuestions) ? trip.customQuestions : [];
-      trip.customQuestions.push({
-        id: uid('q'),
-        label: data.label.trim(),
-        requiredAnswer: data.requiredAnswer || 'Da',
-      });
-      showToast('Criteriu adăugat.');
-    }
-  } else if (activeModal.type === 'deadline') {
-    if (!data.supplierName?.trim() || !data.dueDate) return showError('Furnizorul și data sunt obligatorii.');
-    state.supplierDeadlines = state.supplierDeadlines || [];
-    state.supplierDeadlines.unshift({
-      id: uid('sd'),
-      tripId: activeModal.tripId,
-      supplierName: data.supplierName.trim(),
-      kind: data.kind || 'Avans furnizor',
-      dueDate: data.dueDate,
-      amount: Number(data.amount || 0),
-      currency: data.currency || 'EUR',
-      done: false,
-    });
-    showToast('Scadență furnizor adăugată.');
   } else if (activeModal.type === 'stay') {
     if (!data.name?.trim()) return showError('Numele cazării este obligatoriu.');
     const trip = state.trips.find((t) => t.id === activeModal.tripId);
@@ -1636,46 +1111,21 @@ modalFormEl?.addEventListener('submit', (e) => {
       state.selectedStayId = stayId;
       showToast('Cazare adăugată.');
     }
-  } else if (activeModal.type === 'doc') {
-    if (!data.title?.trim()) return showError('Numele documentului este obligatoriu.');
-    state.documents = state.documents || [];
-    state.documents.unshift({
-      id: uid('doc'),
-      tripId: activeModal.tripId,
-      title: data.title.trim(),
-      kind: data.kind || 'Itinerariu',
-      audience: data.audience || 'Client',
-      version: 1,
-      sentLog: [],
-      updatedAt: new Date().toISOString().slice(0, 10),
-    });
-    showToast('Document adăugat.');
   } else if (activeModal.type === 'email-parse') {
     if (!data.rawText?.trim()) return showError('Lipește textul emailului.');
     const extracted = parseInboundEmailText(data.rawText);
-    if (data.targetType === 'deadline') {
-      state.supplierDeadlines = state.supplierDeadlines || [];
-      state.supplierDeadlines.unshift({
-        id: uid('sd'),
-        tripId: data.tripId || state.selectedTripId,
-        supplierName: extracted.title,
-        kind: extracted.amount > 0 ? 'Avans furnizor' : 'Rooming cut-off',
-        dueDate: extracted.dueDate,
-        amount: extracted.amount,
-        currency: extracted.currency,
-        done: false,
-      });
-      showToast('Scadență furnizor extrasă din email.');
-    } else {
-      state.tasks.unshift({
-        id: uid('tsk'),
-        title: `${extracted.title}${extracted.amount ? ` (${extracted.amount} ${extracted.currency})` : ''}`,
-        dueDate: extracted.dueDate,
-        done: false,
-        tripId: data.tripId || state.selectedTripId,
-      });
-      showToast('Sarcină extrasă din email.');
-    }
+    state.supplierDeadlines = state.supplierDeadlines || [];
+    state.supplierDeadlines.unshift({
+      id: uid('sd'),
+      tripId: data.tripId || state.selectedTripId,
+      supplierName: extracted.title,
+      kind: extracted.amount > 0 ? 'Avans furnizor' : 'Rooming cut-off',
+      dueDate: extracted.dueDate,
+      amount: extracted.amount,
+      currency: extracted.currency,
+      done: false,
+    });
+    showToast('Scadență extrasă din email.');
   } else if (activeModal.type === 'task') {
     if (!data.title?.trim()) return showError('Titlul este obligatoriu.');
     state.tasks.unshift({ id: uid('tsk'), title: data.title.trim(), dueDate: data.dueDate, done: false, tripId: data.tripId });
@@ -1687,259 +1137,11 @@ modalFormEl?.addEventListener('submit', (e) => {
   renderAll();
 });
 
-/* ---------------- CSV & EXCEL SYNC ---------------- */
-
-function exportDatasetCsv(kind) {
-  let headers = [];
-  let rows = [];
-  if (kind === 'trips') {
-    headers = ['titlu', 'destinatie', 'perioada', 'locuri_max', 'cost_pax', 'pret_pax', 'moneda'];
-    rows = state.trips.map((t) => ({
-      titlu: t.title,
-      destinatie: t.destination,
-      perioada: t.dates,
-      locuri_max: t.maxPax,
-      cost_pax: t.costPerPax,
-      pret_pax: t.pricePerPax,
-      moneda: t.currency,
-    }));
-  } else if (kind === 'applications') {
-    headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa', 'tip_camera', 'camera'];
-    rows = state.applications.map((a) => ({
-      sejur: state.trips.find((t) => t.id === a.tripId)?.title || '',
-      client: getCustomer(a.customerId).name,
-      pax: a.pax,
-      buget_pax: a.budgetPerPax,
-      calificare: a.qualificationStatus,
-      etapa: a.stage,
-      tip_camera: a.roomType || 'Double',
-      camera: a.roomCode || 'Neasignat',
-    }));
-  } else {
-    headers = ['nume', 'canal', 'nota'];
-    rows = state.customers.map((c) => ({ nume: c.name, canal: c.channel, nota: c.note }));
-  }
-  const csv = buildCsv(headers, rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${kind}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function previewCsv(text) {
-  const parsed = parseCsvText(text);
-  stagedCsvRows = validateEnquiryImportRows(parsed.rows, [], state.customers);
-  const validCount = stagedCsvRows.filter((r) => r.valid).length;
-  document.getElementById('csv-preview-card').hidden = false;
-  document.getElementById('csv-preview-summary').textContent = `${stagedCsvRows.length} rânduri · ${validCount} valide`;
-  document.getElementById('csv-commit-btn').disabled = validCount === 0;
-  document.getElementById('csv-preview-tbody').innerHTML = stagedCsvRows
-    .map(
-      (r) => `
-    <tr>
-      <td>${r.line}</td>
-      <td>${esc(r.data.customerName || '-')}</td>
-      <td>${esc(r.data.destination || '-')}</td>
-      <td>${r.data.budget ? fmtMoney(r.data.budget, r.data.currency) : '-'}</td>
-      <td><span class="badge ${r.valid ? 'badge-profit' : 'badge-danger'}">${r.valid ? 'Valid' : esc(r.errors.join('; '))}</span></td>
-    </tr>`
-    )
-    .join('');
-}
-
-document.getElementById('csv-file-input')?.addEventListener('change', async (e) => {
-  const f = e.target.files?.[0];
-  if (f) previewCsv(await f.text());
-});
-
-document.getElementById('csv-sample-btn')?.addEventListener('click', () => {
-  previewCsv(
-    [
-      'client,destinatie,data_plecare,buget,moneda',
-      'Ioana Demo,Svalbard,2027-03-14,1900,EUR',
-      ',Roma,14-03-2027,-10,GBP',
-    ].join('\n')
-  );
-});
-
-document.getElementById('csv-commit-btn')?.addEventListener('click', () => {
-  const trip = state.trips[0];
-  if (!trip) return;
-  let added = 0;
-  for (const r of stagedCsvRows) {
-    if (!r.valid) continue;
-    const cust = { id: uid('cust'), name: r.data.customerName, channel: 'Import CSV', note: '' };
-    state.customers.unshift(cust);
-    const qual = autoQualifyApplication(trip, { pax: 1, budgetPerPax: r.data.budget }, 0);
-    state.applications.unshift({
-      id: uid('app'),
-      tripId: trip.id,
-      customerId: cust.id,
-      pax: 1,
-      budgetPerPax: r.data.budget,
-      stage: qual.suggestedStage,
-      qualificationStatus: qual.status,
-      qualificationReasons: qual.reasons,
-      appliedAt: new Date().toISOString().slice(0, 10),
-      notes: ['Importat din CSV'],
-    });
-    added += 1;
-  }
-  saveState();
-  renderAll();
-  showToast(`${added} aplicanți importați.`);
-  document.getElementById('csv-commit-btn').disabled = true;
-});
-
-function buildApplicationsCsvString() {
-  const headers = ['sejur', 'client', 'pax', 'buget_pax', 'calificare', 'etapa', 'tip_camera', 'camera'];
-  const rows = state.applications.map((a) => ({
-    sejur: state.trips.find((t) => t.id === a.tripId)?.title || '',
-    client: getCustomer(a.customerId).name,
-    pax: a.pax,
-    buget_pax: a.budgetPerPax,
-    calificare: a.qualificationStatus,
-    etapa: a.stage,
-    tip_camera: a.roomType || 'Double',
-    camera: a.roomCode || 'Neasignat',
-  }));
-  return buildCsv(headers, rows);
-}
-
-async function writeLinkedExcelFile() {
-  if (!linkedExcelHandle) return;
-  const writable = await linkedExcelHandle.createWritable();
-  await writable.write(buildApplicationsCsvString());
-  await writable.close();
-  const statusEl = document.getElementById('excel-sync-status');
-  if (statusEl) {
-    statusEl.textContent = `Sincronizat la ${new Date().toLocaleTimeString('ro-RO')}`;
-  }
-}
-
-document.getElementById('link-excel-btn')?.addEventListener('click', async () => {
-  if (typeof window.showSaveFilePicker !== 'function') {
-    exportDatasetCsv('applications');
-    showToast('Browserul nu suportă File System Access; s-a descărcat CSV.');
-    return;
-  }
-  try {
-    linkedExcelHandle = await window.showSaveFilePicker({
-      suggestedName: 'garlic-trips-live.csv',
-      types: [{ description: 'Excel CSV', accept: { 'text/csv': ['.csv'] } }],
-    });
-    await writeLinkedExcelFile();
-    document.getElementById('sync-excel-btn').disabled = false;
-    document.getElementById('pull-excel-btn').disabled = false;
-    showToast('Fișier Excel (.csv) legat și sincronizat.');
-  } catch {
-    showToast('Legare anulată.');
-  }
-});
-
-document.getElementById('sync-excel-btn')?.addEventListener('click', async () => {
-  try {
-    await writeLinkedExcelFile();
-    showToast('Excel (.csv) actualizat.');
-  } catch {
-    showToast('Eroare la scrierea fișierului Excel.');
-  }
-});
-
-document.getElementById('pull-excel-btn')?.addEventListener('click', async () => {
-  if (!linkedExcelHandle) return;
-  try {
-    const file = await linkedExcelHandle.getFile();
-    const { rows } = parseCsvText(await file.text());
-    let updated = 0;
-    let added = 0;
-
-    for (const r of rows) {
-      const clientName = (r.client || '').trim();
-      const tripTitle = (r.sejur || '').trim();
-      if (!clientName) continue;
-
-      const trip = state.trips.find((t) => t.title.toLowerCase() === tripTitle.toLowerCase()) || state.trips[0];
-      if (!trip) continue;
-
-      let cust = state.customers.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
-      if (!cust) {
-        cust = { id: uid('cust'), name: clientName, channel: 'Excel Sync', note: '' };
-        state.customers.unshift(cust);
-      }
-
-      const existingApp = state.applications.find((a) => a.tripId === trip.id && a.customerId === cust.id);
-      if (existingApp) {
-        if (r.etapa && APPLICATION_STAGES.includes(r.etapa)) existingApp.stage = r.etapa;
-        if (r.tip_camera && ROOM_TYPES.includes(r.tip_camera)) existingApp.roomType = r.tip_camera;
-        if (r.camera) existingApp.roomCode = r.camera;
-        updated += 1;
-      } else {
-        const pax = Math.max(1, Number(r.pax || 1));
-        const budgetPerPax = Number(r.buget_pax || trip.pricePerPax || 0);
-        const qual = autoQualifyApplication(trip, { pax, budgetPerPax }, 0);
-        state.applications.unshift({
-          id: uid('app'),
-          tripId: trip.id,
-          customerId: cust.id,
-          pax,
-          budgetPerPax,
-          roomType: ROOM_TYPES.includes(r.tip_camera) ? r.tip_camera : 'Double',
-          roomCode: r.camera || 'Neasignat',
-          stage: APPLICATION_STAGES.includes(r.etapa) ? r.etapa : qual.suggestedStage,
-          qualificationStatus: qual.status,
-          qualificationReasons: qual.reasons,
-          appliedAt: new Date().toISOString().slice(0, 10),
-          notes: ['Sincronizat din Excel (.csv)'],
-        });
-        added += 1;
-      }
-    }
-
-    saveState();
-    renderAll();
-    document.getElementById('excel-sync-status').textContent = `Citit din Excel: +${added} noi, ${updated} actualizate`;
-    showToast(`Sincronizat din Excel (+${added}, ${updated} actualizate).`);
-  } catch {
-    showToast('Eroare la citirea fișierului Excel.');
-  }
-});
-
-document.getElementById('backup-json-btn')?.addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `garlic-demo-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('restore-json-input')?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const parsed = JSON.parse(await file.text());
-    if (!Array.isArray(parsed.trips) || !Array.isArray(parsed.applications)) {
-      return showToast('Fișier JSON invalid.');
-    }
-    state = parsed;
-    saveState();
-    renderAll();
-    showToast('Backup restaurat.');
-  } catch {
-    showToast('Eroare la citirea JSON.');
-  }
-});
-
 document.getElementById('reset-demo-btn')?.addEventListener('click', () => {
   state = createSeedState();
   saveState();
   renderAll();
-  showToast('Date demo Garlic Trips resetate.');
+  showToast('Date demo resetate.');
 });
 
 /* ---------------- PUBLIC BOARD & APPLY VIEWS ---------------- */
@@ -1968,32 +1170,32 @@ function renderPublicBoardPage() {
         <p style="margin:0;opacity:0.9">Alege expediția care ți se potrivește și aplică în 30 de secunde.</p>
       </div>
       <div class="pub-board-grid">
-        ${
-          publicTrips.length === 0
-            ? '<div class="card muted">Niciun sejur publicat în acest moment.</div>'
-            : publicTrips
-                .map(
-                  ({ raw, pub }) => `
-                <article class="pub-trip-card">
-                  <div class="pub-trip-cover theme-${esc(raw.coverTheme || 'forest')}">
-                    <div style="font-size:0.75rem;opacity:0.85;margin-bottom:4px">${esc(pub.destination)}</div>
-                    <strong style="font-size:1.18rem;display:block">${esc(pub.title)}</strong>
-                    <div style="font-size:0.82rem;opacity:0.9;margin-top:4px">${esc(pub.dates)}</div>
+        ${publicTrips
+          .map(({ raw, pub }) => {
+            const coverImg = Array.isArray(raw.images) && raw.images[0] ? raw.images[0] : '';
+            const coverStyle = coverImg
+              ? `style="background-image:linear-gradient(rgba(15,35,28,0.52),rgba(15,35,28,0.72)),url('${esc(coverImg)}');background-size:cover;background-position:center"`
+              : '';
+            return `
+              <article class="pub-trip-card">
+                <div class="pub-trip-cover theme-${esc(pub.coverTheme)}" ${coverStyle}>
+                  <div style="font-size:0.75rem;opacity:0.85;margin-bottom:4px">${esc(pub.destination)}</div>
+                  <strong style="font-size:1.18rem;display:block">${esc(pub.title)}</strong>
+                  <div style="font-size:0.82rem;opacity:0.9;margin-top:4px">${esc(pub.dates)}</div>
+                </div>
+                <div class="pub-trip-body">
+                  <span class="badge ${pub.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}" style="width:fit-content">
+                    ${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Listă de așteptare'}
+                  </span>
+                  <p class="small" style="margin:0;color:var(--text-secondary)">${esc(pub.publicSummary)}</p>
+                  <div style="margin-top:auto;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                    <div><strong style="font-size:1.1rem">${fmtMoney(pub.pricePerPax, pub.currency)}</strong> <span class="muted small">/ pers.</span></div>
+                    <a href="/?apply=${encodeURIComponent(pub.id)}" class="btn btn-accent btn-sm">Aplică →</a>
                   </div>
-                  <div class="pub-trip-body">
-                    <span class="badge ${pub.spotsRemaining > 0 ? 'badge-profit' : 'badge-warning'}" style="width:fit-content">
-                      ${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Locuri epuizate'}
-                    </span>
-                    <p class="small" style="margin:0;color:var(--text-secondary)">${esc(pub.publicSummary)}</p>
-                    <div style="margin-top:auto;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-                      <div><strong style="font-size:1.1rem">${fmtMoney(pub.pricePerPax, pub.currency)}</strong> <span class="muted small">/ pers.</span></div>
-                      <a href="/?apply=${encodeURIComponent(pub.id)}" class="btn btn-accent btn-sm">Aplică →</a>
-                    </div>
-                  </div>
-                </article>`
-                )
-                .join('')
-        }
+                </div>
+              </article>`;
+          })
+          .join('')}
       </div>
     </main>
   `;
@@ -2004,7 +1206,10 @@ function renderPublicApplyPage(tripId) {
   if (!trip) return renderAll();
   const pub = buildPublicTripPostingView(trip, state.applications);
   const m = computeMasterTripMetrics(trip, state.applications);
-  const highlights = Array.isArray(trip.highlights) ? trip.highlights : [];
+  const images = Array.isArray(trip.images) ? trip.images : [];
+  const coverStyle = images[0]
+    ? `style="background-image:linear-gradient(rgba(15,35,28,0.58),rgba(15,35,28,0.72)),url('${esc(images[0])}');background-size:cover;background-position:center"`
+    : '';
 
   document.body.innerHTML = `
     <header class="topbar">
@@ -2019,15 +1224,10 @@ function renderPublicApplyPage(tripId) {
         <a href="/" class="btn btn-secondary btn-sm">Workspace Agenție</a>
       </div>
     </header>
-    <main class="page-container" style="max-width:1020px">
-      <div class="pub-hero theme-${esc(pub.coverTheme || 'forest')}" ${
-        pub.coverImageUrl
-          ? `style="background-image:linear-gradient(rgba(15,35,28,0.62),rgba(15,35,28,0.72)),url('${esc(pub.coverImageUrl)}');background-size:cover;background-position:center"`
-          : ''
-      }>
+    <main class="page-container" style="max-width:980px">
+      <div class="pub-hero theme-${esc(pub.coverTheme)}" ${coverStyle}>
         <span class="pub-kicker">${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Listă de așteptare'}</span>
         <h1>${esc(pub.title)}</h1>
-        <p style="margin:0;opacity:0.92;max-width:640px">${esc(pub.publicSummary)}</p>
         <div class="pub-meta-row">
           <span>${icon('globe')} ${esc(pub.destination)}</span>
           <span>${icon('calendar')} ${esc(pub.dates)}</span>
@@ -2037,68 +1237,30 @@ function renderPublicApplyPage(tripId) {
 
       <div class="pub-grid">
         <div class="stack">
-          ${
-            highlights.length > 0
-              ? `<div class="card">
-                  <h2 style="margin:0 0 10px;font-size:1.05rem">Program pe zile</h2>
-                  ${highlights
-                    .map(
-                      ([day, text]) => `
-                    <div class="pub-day">
-                      <span class="pub-day-badge">${esc(day)}</span>
-                      <div class="small">${esc(text)}</div>
-                    </div>`
-                    )
-                    .join('')}
-                </div>`
-              : ''
-          }
           <div class="card">
-            <h2 style="margin:0 0 10px;font-size:1.05rem">Ce este inclus &amp; Plată</h2>
-            <p class="small" style="margin:0 0 8px"><strong>Inclus:</strong> ${esc(pub.includedText)}</p>
-            <p class="small muted" style="margin:0 0 8px"><strong>Neinclus:</strong> ${esc(pub.excludedText)}</p>
-            <p class="small" style="margin:0"><strong>Plată:</strong> ${esc(pub.paymentTerms)}</p>
+            <h2 style="margin:0 0 10px;font-size:1.05rem">Despre expediție</h2>
+            <p class="small" style="margin:0;white-space:pre-line">${esc(pub.publicSummary)}</p>
           </div>
           ${
-            pub.faqs.length > 0
+            images.length > 0
               ? `<div class="card">
-                  <h2 style="margin:0 0 10px;font-size:1.05rem">Întrebări frecvente</h2>
-                  ${pub.faqs
-                    .map(
-                      (f) => `
-                    <div style="padding:8px 0;border-bottom:1px solid var(--border)">
-                      <strong class="small">${esc(f.q)}</strong>
-                      <div class="muted small">${esc(f.a)}</div>
-                    </div>`
-                    )
-                    .join('')}
+                  <h2 style="margin:0 0 10px;font-size:1.05rem">Galerie</h2>
+                  <div class="img-preview-strip">${images.map((src) => `<div class="img-thumb-wrap" style="width:150px;height:100px"><img src="${esc(src)}" alt="Foto sejur"></div>`).join('')}</div>
                 </div>`
               : ''
           }
         </div>
 
         <div class="card">
-          <h2 style="margin:0 0 4px;font-size:1.1rem">${pub.spotsRemaining > 0 ? 'Aplică la expediție' : 'Înscriere pe lista de așteptare'}</h2>
-          <p class="muted small" style="margin-bottom:14px">Completează în 30 de secunde — primești răspuns rapid.</p>
+          <h2 style="margin:0 0 4px;font-size:1.1rem">${pub.spotsRemaining > 0 ? 'Aplică la expediție' : 'Listă de așteptare'}</h2>
+          <p class="muted small" style="margin-bottom:14px">Completează în 30 de secunde.</p>
           <form id="public-apply-form" class="form-stack">
-            <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
+            <div class="field"><label for="pa-name">Nume (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
             <div class="two-col-tight">
               <div class="field"><label for="pa-pax">Nr. persoane</label><input id="pa-pax" name="pax" type="number" min="1" class="input" value="2"></div>
               <div class="field"><label for="pa-budget">Buget / pers. (${esc(pub.currency)})</label><input id="pa-budget" name="budgetPerPax" type="number" min="0" class="input" value="${esc(pub.pricePerPax)}"></div>
             </div>
             <div class="field"><label for="pa-room">Preferință cameră</label><select id="pa-room" name="roomType" class="input">${ROOM_TYPES.map((rt) => `<option value="${rt}">${rt}</option>`).join('')}</select></div>
-            ${pub.customQuestions
-              .map(
-                (q) => `
-              <div class="field">
-                <label for="paq-${esc(q.id)}">${esc(q.label)}</label>
-                <select id="paq-${esc(q.id)}" name="q_${esc(q.id)}" class="input">
-                  <option value="Da">Da</option>
-                  <option value="Nu">Nu</option>
-                </select>
-              </div>`
-              )
-              .join('')}
             <button type="submit" class="btn btn-accent">Trimite aplicarea →</button>
           </form>
           <div id="public-apply-result" style="margin-top:14px"></div>
@@ -2111,15 +1273,11 @@ function renderPublicApplyPage(tripId) {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target).entries());
     if (!data.name?.trim()) return;
-    const cust = { id: uid('cust'), name: data.name.trim(), channel: 'Board Public', note: 'Aplicat online' };
+    const cust = { id: uid('cust'), name: data.name.trim(), channel: 'Board Public', note: '' };
     state.customers.unshift(cust);
-    const answers = {};
-    for (const q of pub.customQuestions) {
-      answers[q.id] = data[`q_${q.id}`] || 'Da';
-    }
     const qual = autoQualifyApplication(
       trip,
-      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0), answers },
+      { pax: Number(data.pax || 1), budgetPerPax: Number(data.budgetPerPax || 0) },
       m.confirmedPax
     );
     state.applications.unshift({
@@ -2148,7 +1306,6 @@ function renderPublicApplyPage(tripId) {
         pax: Number(data.pax || 1),
         budgetPerPax: Number(data.budgetPerPax || 0),
         roomType: data.roomType || 'Double',
-        answers,
       }),
     }).catch(() => {});
     document.getElementById('public-apply-result').innerHTML = `
@@ -2175,7 +1332,7 @@ async function initApp() {
       }
     }
   } catch {
-    // Offline / localStorage fallback
+    // Offline fallback
   }
 
   if (urlParams.get('board')) {

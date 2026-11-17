@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsvText, validateEnquiryImportRows, buildCsv } from '../public/csv-utils.js';
 import { getDueStatus, getDueLabel } from '../public/date-utils.js';
-import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText, buildBillingExportRows, buildSocialPostText, cloneMasterTrip } from '../public/trip-utils.js';
+import { computeMasterTripMetrics, autoQualifyApplication, buildPublicTripPostingView, analyzeRooming, buildHotelRoomingRows, buildGeneratedDocumentText, buildBillingExportRows, buildSocialPostText, cloneMasterTrip, computeAnalytics } from '../public/trip-utils.js';
 import { renderMessageTemplate, parseInboundEmailText } from '../public/template-utils.js';
 import { sanitizeOfferBrief, createAppServer } from '../server.mjs';
 
@@ -329,4 +329,19 @@ test('cloneMasterTrip creates a new Draft trip with cloned stays and custom ques
   assert.equal(cloned.stays.length, 1);
   assert.notEqual(cloned.stays[0].id, 's1');
   assert.equal(cloned.customQuestions.length, 1);
+});
+
+test('computeAnalytics aggregates profit, occupancy, qualification rate, and funnel', () => {
+  const trips = [
+    { id: 't1', title: 'Svalbard', maxPax: 10, costPerPax: 1000, pricePerPax: 1500, fixedCost: 0, currency: 'EUR' },
+  ];
+  const apps = [
+    { tripId: 't1', pax: 4, stage: 'Confirmat', qualificationStatus: 'Calificat automat' },
+    { tripId: 't1', pax: 1, stage: 'Aplicat', qualificationStatus: 'Buget sub prag' },
+  ];
+  const a = computeAnalytics(trips, apps);
+  assert.equal(a.totalProfit, 2000);
+  assert.equal(a.occupancyPct, 40);
+  assert.equal(a.qualificationRatePct, 50);
+  assert.equal(a.funnel.find((f) => f.stage === 'Confirmat').count, 1);
 });
