@@ -52,6 +52,11 @@ function createSeedState() {
           ['Ziua 5–6', 'Peștera de gheață & seară nordică la cabană'],
           ['Ziua 7', 'Zbor retur spre casă'],
         ],
+        faqs: [
+          { id: 'f-1', q: 'Am nevoie de experiență pe snowmobil?', a: 'Nu, dar este necesar permis categoria B valabil.' },
+          { id: 'f-2', q: 'Pot veni singur(ă)?', a: 'Da, poți alege Twin (Partajabil) ca să împarți camera fără supliment Single.' },
+        ],
+        paymentTerms: 'Avans 30% la confirmare, rest cu 30 de zile înainte de plecare [DE CONFIRMAT].',
         includedText: 'Cazare 7 nopți, ghid însoțitor, tură snowmobil, transfer aeroport',
         excludedText: 'Zbor internațional, echipament termic personal, asigurare',
         customQuestions: [
@@ -544,6 +549,18 @@ function renderMasterTripCenter(trip) {
           </div>
           <div class="two-col-tight">
             <div class="field">
+              <label for="p-cover">Cover Image URL (opțional)</label>
+              <input id="p-cover" name="coverImageUrl" class="input" placeholder="https://..." value="${esc(pub.coverImageUrl)}">
+            </div>
+            <div class="field">
+              <label for="p-theme">Temă vizuală</label>
+              <select id="p-theme" name="coverTheme" class="input">
+                ${['arctic', 'forest', 'tropical'].map((th) => `<option value="${th}" ${pub.coverTheme === th ? 'selected' : ''}>${th}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="two-col-tight">
+            <div class="field">
               <label for="p-inc">Inclus în tarif</label>
               <input id="p-inc" name="includedText" class="input" value="${esc(pub.includedText)}">
             </div>
@@ -552,13 +569,48 @@ function renderMasterTripCenter(trip) {
               <input id="p-exc" name="excludedText" class="input" value="${esc(pub.excludedText)}">
             </div>
           </div>
+          <div class="field">
+            <label for="p-pay">Condiții plată &amp; anulare</label>
+            <input id="p-pay" name="paymentTerms" class="input" value="${esc(pub.paymentTerms)}">
+          </div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Salvează anunțul</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-question-btn">+ Criteriu calificare (Da/Nu)</button>
+            <button type="submit" class="btn btn-primary btn-sm">Salvează CMS</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-day-btn">+ Zi program</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-faq-btn">+ FAQ</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-question-btn">+ Criteriu</button>
           </div>
         </form>
 
         <hr class="divider">
+        <div class="small muted" style="margin-bottom:8px;font-weight:600">Program pe zile (${pub.highlights.length})</div>
+        ${
+          pub.highlights.length === 0
+            ? '<p class="muted small">Nicio zi adăugată.</p>'
+            : `<div class="stack" style="margin-bottom:14px">${pub.highlights
+                .map(
+                  ([day, text], idx) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <span class="small"><strong>${esc(day)}:</strong> ${esc(text)}</span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-day="${idx}">✕</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
+
+        <div class="small muted" style="margin-bottom:8px;font-weight:600">FAQ (${pub.faqs.length})</div>
+        ${
+          pub.faqs.length === 0
+            ? '<p class="muted small" style="margin-bottom:14px">Niciun FAQ adăugat.</p>'
+            : `<div class="stack" style="margin-bottom:14px">${pub.faqs
+                .map(
+                  (f) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+                  <span class="small"><strong>${esc(f.q)}</strong> — ${esc(f.a)}</span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-delete-faq="${esc(f.id)}">✕</button>
+                </div>`
+                )
+                .join('')}</div>`
+        }
         <div class="small muted" style="margin-bottom:8px;font-weight:600">Criterii de auto-calificare la înscriere (${questions.length})</div>
         ${
           questions.length === 0
@@ -901,6 +953,8 @@ document.addEventListener('click', async (e) => {
 
   if (btn.id === 'new-trip-btn') openTripModal();
   else if (btn.id === 'add-stay-btn') openStayModal();
+  else if (btn.id === 'add-day-btn') openDayModal();
+  else if (btn.id === 'add-faq-btn') openFaqModal();
   else if (btn.id === 'add-question-btn') openQuestionModal();
   else if (btn.id === 'add-deadline-btn') openDeadlineModal();
   else if (btn.id === 'copy-stay1-btn') {
@@ -1145,6 +1199,21 @@ document.addEventListener('click', async (e) => {
       saveState();
       renderTripsView();
     }
+  } else if (btn.dataset.deleteDay !== undefined) {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    const idx = Number(btn.dataset.deleteDay);
+    if (trip && Array.isArray(trip.highlights)) {
+      trip.highlights.splice(idx, 1);
+      saveState();
+      renderTripsView();
+    }
+  } else if (btn.dataset.deleteFaq) {
+    const trip = state.trips.find((t) => t.id === state.selectedTripId);
+    if (trip && Array.isArray(trip.faqs)) {
+      trip.faqs = trip.faqs.filter((f) => f.id !== btn.dataset.deleteFaq);
+      saveState();
+      renderTripsView();
+    }
   } else if (btn.dataset.deleteDeadline) {
     state.supplierDeadlines = (state.supplierDeadlines || []).filter((sd) => sd.id !== btn.dataset.deleteDeadline);
     saveState();
@@ -1256,11 +1325,14 @@ document.addEventListener('submit', (e) => {
     if (!trip) return;
     const fd = Object.fromEntries(new FormData(e.target).entries());
     trip.publicSummary = (fd.publicSummary || '').trim();
+    trip.coverImageUrl = (fd.coverImageUrl || '').trim();
+    trip.coverTheme = fd.coverTheme || 'forest';
     trip.includedText = (fd.includedText || '').trim();
     trip.excludedText = (fd.excludedText || '').trim();
+    trip.paymentTerms = (fd.paymentTerms || '').trim();
     saveState();
     renderTripsView();
-    showToast('Anunțul public a fost salvat.');
+    showToast('Conținut CMS salvat.');
   }
 });
 
@@ -1337,6 +1409,26 @@ function openApplyModal() {
       </div>`
       )
       .join('')}
+  `;
+  modalEl.hidden = false;
+}
+
+function openDayModal() {
+  activeModal = { type: 'day', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Zi nouă în program';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="day-lbl">Etichetă zi *</label><input id="day-lbl" name="day" class="input" required placeholder="ex. Ziua 5"></div>
+    <div class="field"><label for="day-txt">Descriere activități *</label><input id="day-txt" name="text" class="input" required placeholder="ex. Tur ghidat & cină tradițională"></div>
+  `;
+  modalEl.hidden = false;
+}
+
+function openFaqModal() {
+  activeModal = { type: 'faq', tripId: state.selectedTripId };
+  modalTitleEl.textContent = 'Întrebare frecventă (FAQ)';
+  modalFieldsEl.innerHTML = `
+    <div class="field"><label for="faq-q">Întrebare *</label><input id="faq-q" name="q" class="input" required placeholder="ex. Este inclus echipamentul?"></div>
+    <div class="field"><label for="faq-a">Răspuns *</label><textarea id="faq-a" name="a" rows="2" class="input" required></textarea></div>
   `;
   modalEl.hidden = false;
 }
@@ -1486,6 +1578,22 @@ modalFormEl?.addEventListener('submit', (e) => {
     });
     state.selectedAppId = appId;
     showToast(`Aplicant adăugat: ${qual.status}`);
+  } else if (activeModal.type === 'day') {
+    if (!data.day?.trim() || !data.text?.trim()) return showError('Ziua și descrierea sunt obligatorii.');
+    const trip = state.trips.find((t) => t.id === activeModal.tripId);
+    if (trip) {
+      trip.highlights = Array.isArray(trip.highlights) ? trip.highlights : [];
+      trip.highlights.push([data.day.trim(), data.text.trim()]);
+      showToast('Zi adăugată în program.');
+    }
+  } else if (activeModal.type === 'faq') {
+    if (!data.q?.trim() || !data.a?.trim()) return showError('Întrebarea și răspunsul sunt obligatorii.');
+    const trip = state.trips.find((t) => t.id === activeModal.tripId);
+    if (trip) {
+      trip.faqs = Array.isArray(trip.faqs) ? trip.faqs : [];
+      trip.faqs.push({ id: uid('faq'), q: data.q.trim(), a: data.a.trim() });
+      showToast('FAQ adăugat.');
+    }
   } else if (activeModal.type === 'question') {
     if (!data.label?.trim()) return showError('Întrebarea este obligatorie.');
     const trip = state.trips.find((t) => t.id === activeModal.tripId);
@@ -1912,8 +2020,12 @@ function renderPublicApplyPage(tripId) {
       </div>
     </header>
     <main class="page-container" style="max-width:1020px">
-      <div class="pub-hero theme-${esc(trip.coverTheme || 'forest')}">
-        <span class="pub-kicker">${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Locuri epuizate'}</span>
+      <div class="pub-hero theme-${esc(pub.coverTheme || 'forest')}" ${
+        pub.coverImageUrl
+          ? `style="background-image:linear-gradient(rgba(15,35,28,0.62),rgba(15,35,28,0.72)),url('${esc(pub.coverImageUrl)}');background-size:cover;background-position:center"`
+          : ''
+      }>
+        <span class="pub-kicker">${pub.spotsRemaining > 0 ? `${pub.spotsRemaining} locuri libere` : 'Listă de așteptare'}</span>
         <h1>${esc(pub.title)}</h1>
         <p style="margin:0;opacity:0.92;max-width:640px">${esc(pub.publicSummary)}</p>
         <div class="pub-meta-row">
@@ -1942,14 +2054,31 @@ function renderPublicApplyPage(tripId) {
               : ''
           }
           <div class="card">
-            <h2 style="margin:0 0 10px;font-size:1.05rem">Ce este inclus</h2>
+            <h2 style="margin:0 0 10px;font-size:1.05rem">Ce este inclus &amp; Plată</h2>
             <p class="small" style="margin:0 0 8px"><strong>Inclus:</strong> ${esc(pub.includedText)}</p>
-            <p class="small muted" style="margin:0"><strong>Neinclus:</strong> ${esc(pub.excludedText)}</p>
+            <p class="small muted" style="margin:0 0 8px"><strong>Neinclus:</strong> ${esc(pub.excludedText)}</p>
+            <p class="small" style="margin:0"><strong>Plată:</strong> ${esc(pub.paymentTerms)}</p>
           </div>
+          ${
+            pub.faqs.length > 0
+              ? `<div class="card">
+                  <h2 style="margin:0 0 10px;font-size:1.05rem">Întrebări frecvente</h2>
+                  ${pub.faqs
+                    .map(
+                      (f) => `
+                    <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+                      <strong class="small">${esc(f.q)}</strong>
+                      <div class="muted small">${esc(f.a)}</div>
+                    </div>`
+                    )
+                    .join('')}
+                </div>`
+              : ''
+          }
         </div>
 
         <div class="card">
-          <h2 style="margin:0 0 4px;font-size:1.1rem">Aplică la expediție</h2>
+          <h2 style="margin:0 0 4px;font-size:1.1rem">${pub.spotsRemaining > 0 ? 'Aplică la expediție' : 'Înscriere pe lista de așteptare'}</h2>
           <p class="muted small" style="margin-bottom:14px">Completează în 30 de secunde — primești răspuns rapid.</p>
           <form id="public-apply-form" class="form-stack">
             <div class="field"><label for="pa-name">Nume / Etichetă (demo) *</label><input id="pa-name" name="name" class="input" required placeholder="ex. Andrei Demo"></div>
